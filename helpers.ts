@@ -1,31 +1,38 @@
-// A utility function to perform a deep merge of two objects
-function deepMerge<T>(target: T, source: Partial<T>): T {
-    for (const key in source) {
-        if (source.hasOwnProperty(key)) {
-            const srcValue = source[key];
-            const tgtValue = target[key];
+import * as fs from 'fs';
+import * as path from 'path';
+import { createLogger, transports, format } from 'winston';
 
-            if (typeof srcValue === 'object' && srcValue !== null && typeof tgtValue === 'object' && tgtValue !== null) {
-                target[key] = deepMerge(tgtValue, srcValue);
-            } else {
-                target[key] = srcValue;
-            }
-        }
-    }
-    return target;
+const logDir = 'logs'; // directory for log files
+
+// Ensure log directory exists
+if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir);
 }
 
-// A utility function to generate a unique ID
-function generateUniqueId(prefix: string = 'id'): string {
-    return `${prefix}_${Math.random().toString(36).substr(2, 9)}`;
-}
+const maxSize = '20m'; // maximum size of each log file
+const maxFiles = '14d'; // retain logs for 14 days
 
-// A utility function to format dates in 'YYYY-MM-DD' format
-function formatDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
+const logger = createLogger({
+    level: 'info',
+    format: format.combine(
+        format.timestamp(),
+        format.printf(({ timestamp, level, message }) => {
+            return `${timestamp} ${level}: ${message}`;
+        })
+    ),
+    transports: [
+        new transports.File({
+            filename: path.join(logDir, 'application.log'),
+            maxsize: maxSize,
+            maxFiles: maxFiles,
+            tailable: true,
+            level: 'info',
+        }),
+        new transports.Console({
+            format: format.simple(),
+            level: 'debug',
+        }),
+    ],
+});
 
-export { deepMerge, generateUniqueId, formatDate };
+export default logger;
