@@ -1,26 +1,28 @@
 import fs from 'fs';
+import path from 'path';
 
 interface Config {
-  port: number;
-  dbUrl: string;
-  logLevel: string;
+    apiUrl: string;
+    timeout: number;
+    logLevel: string;
 }
 
 const defaultConfig: Config = {
-  port: 3000,
-  dbUrl: 'mongodb://localhost:27017/myapp',
-  logLevel: 'info',
+    apiUrl: 'https://api.example.com',
+    timeout: 5000,
+    logLevel: 'info',
 };
 
-export function loadConfig(filePath: string): Config {
-  try {
-    const rawConfig = fs.readFileSync(filePath, 'utf-8');
-    const userConfig: Partial<Config> = JSON.parse(rawConfig);
-    return { ...defaultConfig, ...userConfig };
-  } catch (error) {
-    console.error('Error loading config:', error);
-    return defaultConfig;
-  }
-}
+const loadConfig = (configPath: string): Config => {
+    const fullPath = path.resolve(configPath);
+    try {
+        const fileContent = fs.readFileSync(fullPath, 'utf-8');
+        const fileConfig: Partial<Config> = JSON.parse(fileContent);
+        return { ...defaultConfig, ...fileConfig };
+    } catch (error) {
+        console.warn(`Could not load config from ${fullPath}, using defaults.`, error);
+        return defaultConfig;
+    }
+};
 
-export default defaultConfig;
+export { loadConfig, Config };
