@@ -1,35 +1,9 @@
-import fs from 'fs';
-import path from 'path';
-import winston from 'winston';
-import 'winston-daily-rotate-file';
+export function isArray(obj: any): obj is Array<any> { return Array.isArray(obj); }
 
-const logDir = path.join(__dirname, 'logs');
+export function isObject(obj: any): obj is Record<string, any> { return obj !== null && typeof obj === 'object'; }
 
-// Ensure log directory exists
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir);
-}
+export function deepClone<T>(obj: T): T { return JSON.parse(JSON.stringify(obj)); }
 
-const transport = new winston.transports.DailyRotateFile({
-  filename: path.join(logDir, 'app-%DATE%.log'),
-  datePattern: 'YYYY-MM-DD',
-  zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '14d',
-});
+export function mergeObjects<T extends object, U extends object>(target: T, source: U): T & U { return { ...target, ...source }; }
 
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    transport,
-    new winston.transports.Console({
-      format: winston.format.simple(),
-    }),
-  ],
-});
-
-export default logger;
+export function debounce(func: Function, delay: number): Function { let timeout: NodeJS.Timeout; return function(...args: any[]) { const context = this; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
