@@ -1,38 +1,28 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { createLogger, transports, format } from 'winston';
+import fs from 'fs';
+import path from 'path';
 
-const logDir = 'logs'; // directory for log files
-
-// Ensure log directory exists
-if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir);
+interface Config {
+    apiUrl: string;
+    apiKey: string;
+    timeout: number;
 }
 
-const maxSize = '20m'; // maximum size of each log file
-const maxFiles = '14d'; // retain logs for 14 days
+const defaultConfig: Config = {
+    apiUrl: 'https://api.default.example',
+    apiKey: 'defaultApiKey',
+    timeout: 5000,
+};
 
-const logger = createLogger({
-    level: 'info',
-    format: format.combine(
-        format.timestamp(),
-        format.printf(({ timestamp, level, message }) => {
-            return `${timestamp} ${level}: ${message}`;
-        })
-    ),
-    transports: [
-        new transports.File({
-            filename: path.join(logDir, 'application.log'),
-            maxsize: maxSize,
-            maxFiles: maxFiles,
-            tailable: true,
-            level: 'info',
-        }),
-        new transports.Console({
-            format: format.simple(),
-            level: 'debug',
-        }),
-    ],
-});
+function loadConfig(filePath: string): Config {
+    const resolvedPath = path.resolve(filePath);
+    try {
+        const configFile = fs.readFileSync(resolvedPath, 'utf-8');
+        const userConfig = JSON.parse(configFile) as Partial<Config>;
+        return { ...defaultConfig, ...userConfig };
+    } catch (error) {
+        console.warn('Could not load config file:', error);
+        return defaultConfig;
+    }
+}
 
-export default logger;
+export { loadConfig, Config };
