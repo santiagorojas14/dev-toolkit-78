@@ -1,23 +1,28 @@
-function formatCryptoAmount(amount: number, decimals: number = 8): string {
-    return amount.toFixed(decimals);
+type InputValidationResult = {
+    isValid: boolean;
+    errors?: string[];
+};
+
+/**
+ * Validates an input string for transactions.
+ * @param input - The transaction input string.
+ * @returns InputValidationResult - The validation result.
+ */
+function validateTransactionInput(input: string): InputValidationResult {
+    const errors: string[] = [];
+    const trimmedInput = input.trim();
+
+    if (trimmedInput.length === 0) {
+        errors.push('Input cannot be empty.');
+    }
+    if (!/^[A-Za-z0-9]+$/.test(trimmedInput)) {
+        errors.push('Input must be alphanumeric.');
+    }
+    if (trimmedInput.length < 5 || trimmedInput.length > 50) {
+        errors.push('Input must be between 5 and 50 characters long.');
+    }
+
+    return { isValid: errors.length === 0, errors: errors.length > 0 ? errors : undefined }; 
 }
 
-function convertToCurrency(amount: number, exchangeRate: number): number {
-    return amount * exchangeRate;
-}
-
-function isValidAddress(address: string): boolean {
-    const regex = /^0x[a-fA-F0-9]{40}$/;
-    return regex.test(address);
-}
-
-function calculateMarketCap(supply: number, price: number): number {
-    return supply * price;
-}
-
-function getPriceChangePercentage(oldPrice: number, newPrice: number): number {
-    if (oldPrice === 0) return 0;
-    return ((newPrice - oldPrice) / oldPrice) * 100;
-}
-
-export { formatCryptoAmount, convertToCurrency, isValidAddress, calculateMarketCap, getPriceChangePercentage };
+export { validateTransactionInput };
