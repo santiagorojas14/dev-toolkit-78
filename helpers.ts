@@ -1,28 +1,22 @@
-import fs from 'fs';
-import path from 'path';
-
-interface Config {
-    apiUrl: string;
-    apiKey: string;
-    timeout: number;
+export function calculateTransactionFee(gasPrice: number, gasLimit: number): number {
+    return gasPrice * gasLimit;
 }
 
-const defaultConfig: Config = {
-    apiUrl: 'https://api.default.example',
-    apiKey: 'defaultApiKey',
-    timeout: 5000,
-};
-
-function loadConfig(filePath: string): Config {
-    const resolvedPath = path.resolve(filePath);
-    try {
-        const configFile = fs.readFileSync(resolvedPath, 'utf-8');
-        const userConfig = JSON.parse(configFile) as Partial<Config>;
-        return { ...defaultConfig, ...userConfig };
-    } catch (error) {
-        console.warn('Could not load config file:', error);
-        return defaultConfig;
-    }
+export function isValidAddress(address: string): boolean {
+    const regex = /^(0x)?[0-9a-fA-F]{40}$/;
+    return regex.test(address);
 }
 
-export { loadConfig, Config };
+export function formatBalance(balance: number, decimals: number = 18): string {
+    return (balance / Math.pow(10, decimals)).toFixed(decimals);
+}
+
+export function uniqueTransactionIds(transactions: Array<{ id: string }>): string[] {
+    const ids = new Set<string>();
+    transactions.forEach(tx => ids.add(tx.id));
+    return Array.from(ids);
+}
+
+export function getCurrentTimestamp(): number {
+    return Math.floor(Date.now() / 1000);
+}
