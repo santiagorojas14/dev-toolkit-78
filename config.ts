@@ -1,28 +1,35 @@
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
-interface Config {
-    apiUrl: string;
-    timeout: number;
-    logLevel: string;
+interface Config {  
+    apiUrl: string;  
+    timeout: number;  
 }
 
-const defaultConfig: Config = {
-    apiUrl: 'https://api.example.com',
-    timeout: 5000,
-    logLevel: 'info',
+const defaultConfig: Config = {  
+    apiUrl: 'https://api.example.com',  
+    timeout: 5000,  
 };
 
-const loadConfig = (configPath: string): Config => {
-    const fullPath = path.resolve(configPath);
-    try {
-        const fileContent = fs.readFileSync(fullPath, 'utf-8');
-        const fileConfig: Partial<Config> = JSON.parse(fileContent);
-        return { ...defaultConfig, ...fileConfig };
-    } catch (error) {
-        console.warn(`Could not load config from ${fullPath}, using defaults.`, error);
-        return defaultConfig;
-    }
-};
+function loadConfig(configPath: string): Config {  
+    try {  
+        const absolutePath = path.resolve(configPath);  
+        const rawData = fs.readFileSync(absolutePath, 'utf-8');  
+        const parsedConfig = JSON.parse(rawData);  
+        return {  
+            ...defaultConfig,  
+            ...parsedConfig,  
+        };  
+    } catch (error) {  
+        if (error.code === 'ENOENT') {  
+            console.error(`Config file not found at ${configPath}`);  
+        } else if (error instanceof SyntaxError) {  
+            console.error(`Config file contains invalid JSON: ${error.message}`);  
+        } else {  
+            console.error(`Unexpected error: ${error.message}`);  
+        }  
+        return defaultConfig;  
+    }  
+}
 
 export { loadConfig, Config };
