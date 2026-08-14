@@ -1,35 +1,27 @@
-import * as fs from 'fs';
-import * as path from 'path';
-
-interface Config {  
-    apiUrl: string;  
-    timeout: number;  
+export interface Config {
+    apiBaseUrl: string;
+    apiKey: string;
+    timeout: number;
 }
 
-const defaultConfig: Config = {  
-    apiUrl: 'https://api.example.com',  
-    timeout: 5000,  
+const config: Config = {
+    apiBaseUrl: 'https://api.crypto.example.com',
+    apiKey: process.env.API_KEY || '',
+    timeout: 5000,
 };
 
-function loadConfig(configPath: string): Config {  
-    try {  
-        const absolutePath = path.resolve(configPath);  
-        const rawData = fs.readFileSync(absolutePath, 'utf-8');  
-        const parsedConfig = JSON.parse(rawData);  
-        return {  
-            ...defaultConfig,  
-            ...parsedConfig,  
-        };  
-    } catch (error) {  
-        if (error.code === 'ENOENT') {  
-            console.error(`Config file not found at ${configPath}`);  
-        } else if (error instanceof SyntaxError) {  
-            console.error(`Config file contains invalid JSON: ${error.message}`);  
-        } else {  
-            console.error(`Unexpected error: ${error.message}`);  
-        }  
-        return defaultConfig;  
-    }  
-}
+export const getConfig = (): Config => {
+    return config;
+};
 
-export { loadConfig, Config };
+export const setApiBaseUrl = (url: string): void => {
+    config.apiBaseUrl = url;
+};
+
+export const setApiKey = (key: string): void => {
+    config.apiKey = key;
+};
+
+export const setTimeout = (time: number): void => {
+    config.timeout = time;
+};
