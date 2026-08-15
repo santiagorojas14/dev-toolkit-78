@@ -1,30 +1,27 @@
-/**
- * Converts a hexadecimal string to a number.
- * @param hex - The hexadecimal string to convert.
- * @returns The corresponding number.
- */
-function hexToNumber(hex: string): number {
-    return parseInt(hex, 16);
+import axios, { AxiosError } from 'axios';
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // milliseconds
+
+async function delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Generates a random cryptographic nonce.
- * @returns A random nonce represented as a hexadecimal string.
- */
-function generateNonce(): string {
-    const array = new Uint8Array(16);
-    window.crypto.getRandomValues(array);
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+export async function fetchWithRetry(url: string, options: object = {}, retries: number = MAX_RETRIES): Promise<any> {
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            const response = await axios.get(url, options);
+            return response.data;
+        } catch (error) {
+            if (attempt === retries - 1) {
+                throw error; // rethrow after final attempt
+            }
+            if (axios.isAxiosError(error) && error.response) {
+                console.error(`Attempt ${attempt + 1}: Received status ${error.response.status}`);
+            } else {
+                console.error(`Attempt ${attempt + 1}: ${error.message}`);
+            }
+            await delay(RETRY_DELAY);
+        }
+    }
 }
-
-/**
- * Checks if a given address is valid.
- * @param address - The address string to validate.
- * @returns True if the address is valid, otherwise false.
- */
-function isValidAddress(address: string): boolean {
-    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-    return addressRegex.test(address);
-}
-
-export { hexToNumber, generateNonce, isValidAddress };
