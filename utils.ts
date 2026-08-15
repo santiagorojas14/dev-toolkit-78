@@ -1,28 +1,30 @@
-type InputValidationResult = {
-    isValid: boolean;
-    errors?: string[];
-};
-
 /**
- * Validates an input string for transactions.
- * @param input - The transaction input string.
- * @returns InputValidationResult - The validation result.
+ * Converts a hexadecimal string to a number.
+ * @param hex - The hexadecimal string to convert.
+ * @returns The corresponding number.
  */
-function validateTransactionInput(input: string): InputValidationResult {
-    const errors: string[] = [];
-    const trimmedInput = input.trim();
-
-    if (trimmedInput.length === 0) {
-        errors.push('Input cannot be empty.');
-    }
-    if (!/^[A-Za-z0-9]+$/.test(trimmedInput)) {
-        errors.push('Input must be alphanumeric.');
-    }
-    if (trimmedInput.length < 5 || trimmedInput.length > 50) {
-        errors.push('Input must be between 5 and 50 characters long.');
-    }
-
-    return { isValid: errors.length === 0, errors: errors.length > 0 ? errors : undefined }; 
+function hexToNumber(hex: string): number {
+    return parseInt(hex, 16);
 }
 
-export { validateTransactionInput };
+/**
+ * Generates a random cryptographic nonce.
+ * @returns A random nonce represented as a hexadecimal string.
+ */
+function generateNonce(): string {
+    const array = new Uint8Array(16);
+    window.crypto.getRandomValues(array);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Checks if a given address is valid.
+ * @param address - The address string to validate.
+ * @returns True if the address is valid, otherwise false.
+ */
+function isValidAddress(address: string): boolean {
+    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+    return addressRegex.test(address);
+}
+
+export { hexToNumber, generateNonce, isValidAddress };
