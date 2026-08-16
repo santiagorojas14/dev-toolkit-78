@@ -1,22 +1,29 @@
-export function calculateTransactionFee(gasPrice: number, gasLimit: number): number {
-    return gasPrice * gasLimit;
+export async function fetchWithRetry(url: string, options: RequestInit = {}, retries: number = 3, delay: number = 1000): Promise<Response> {
+    try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response;
+    } catch (error) {
+        if (retries > 0) {
+            console.warn(`Fetch failed, retrying... (${retries} retries left)`);
+            await new Promise(res => setTimeout(res, delay));
+            return fetchWithRetry(url, options, retries - 1, delay);
+        } else {
+            console.error('Max retries reached.');
+            throw error;
+        }
+    }
 }
 
-export function isValidAddress(address: string): boolean {
-    const regex = /^(0x)?[0-9a-fA-F]{40}$/;
-    return regex.test(address);
-}
-
-export function formatBalance(balance: number, decimals: number = 18): string {
-    return (balance / Math.pow(10, decimals)).toFixed(decimals);
-}
-
-export function uniqueTransactionIds(transactions: Array<{ id: string }>): string[] {
-    const ids = new Set<string>();
-    transactions.forEach(tx => ids.add(tx.id));
-    return Array.from(ids);
-}
-
-export function getCurrentTimestamp(): number {
-    return Math.floor(Date.now() / 1000);
-}
+// Example usage
+// (async () => {
+//    try {
+//        const response = await fetchWithRetry('https://api.example.com/data');
+//        const data = await response.json();
+//        console.log(data);
+//    } catch (error) {
+//        console.error('Final error:', error);
+//    }
+//})();
