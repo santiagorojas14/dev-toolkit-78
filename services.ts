@@ -1,30 +1,39 @@
 import axios from 'axios';
-import { CryptoData, ExchangeRates } from './types';
 
-export async function fetchCryptoData(cryptoId: string): Promise<CryptoData> {
-    try {
-        const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${cryptoId}`);
-        return response.data;
-    } catch (error) {
-        console.error(`Failed to fetch data for ${cryptoId}:`, error);
-        throw new Error('Could not fetch crypto data');
+export interface CryptoData {
+  id: string;
+  name: string;
+  price: number;
+  marketCap: number;
+}
+
+// Function to fetch cryptocurrency data
+export const fetchCryptoData = async (coinId: string): Promise<CryptoData | null> => {
+  try {
+    const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coinId}`);
+    const data = response.data;
+    return {
+      id: data.id,
+      name: data.name,
+      price: parseFloat(data.market_data.current_price.usd),
+      marketCap: parseFloat(data.market_data.market_cap.usd),
+    };
+  } catch (error) {
+    console.error('Error fetching crypto data:', error);
+    return null;
+  }
+};
+
+// Function to fetch multiple cryptocurrencies
+export const fetchMultipleCryptoData = async (coinIds: string[]): Promise<CryptoData[]> => {
+  const results: CryptoData[] = [];
+  for (const coinId of coinIds) {
+    const data = await fetchCryptoData(coinId);
+    if (data) {
+      results.push(data);
+    } else {
+      console.warn('No data found for coinId:', coinId);
     }
-}
-
-export async function fetchExchangeRates(baseCurrency: string): Promise<ExchangeRates> {
-    try {
-        const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=${baseCurrency}`);
-        return response.data;
-    } catch (error) {
-        console.error(`Failed to fetch exchange rates for ${baseCurrency}:`, error);
-        throw new Error('Could not fetch exchange rates');
-    }
-}
-
-export function formatCryptoData(data: CryptoData): string {
-    return `Name: ${data.name}, Symbol: ${data.symbol}, Price: $${data.market_data.current_price.usd}`;
-}
-
-export function getCurrentPrice(data: CryptoData): number {
-    return data.market_data.current_price.usd;
-}
+  }
+  return results;
+};
