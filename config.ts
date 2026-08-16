@@ -1,27 +1,28 @@
-export interface Config {
-    apiBaseUrl: string;
-    apiKey: string;
-    timeout: number;
-}
+import { createLogger, format, transports } from 'winston';
+import { ConsoleTransportOptions } from 'winston/lib/winston/transports';
 
-const config: Config = {
-    apiBaseUrl: 'https://api.crypto.example.com',
-    apiKey: process.env.API_KEY || '',
-    timeout: 5000,
-};
+const logFormat = format.printf(({ timestamp, level, message }) => {
+    return `${timestamp} [${level}]: ${message}`;
+});
 
-export const getConfig = (): Config => {
-    return config;
-};
+const logger = createLogger({
+    level: 'info',
+    format: format.combine(
+        format.timestamp(),
+        logFormat
+    ),
+    transports: [
+        new transports.Console(),
+        new transports.File({
+            filename: 'logs/error.log',
+            level: 'error',
+            options: { flags: 'a' },
+        }),
+        new transports.File({
+            filename: 'logs/combined.log',
+            options: { flags: 'a' },
+        })
+    ]
+});
 
-export const setApiBaseUrl = (url: string): void => {
-    config.apiBaseUrl = url;
-};
-
-export const setApiKey = (key: string): void => {
-    config.apiKey = key;
-};
-
-export const setTimeout = (time: number): void => {
-    config.timeout = time;
-};
+export default logger;
