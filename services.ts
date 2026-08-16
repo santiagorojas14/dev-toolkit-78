@@ -1,29 +1,30 @@
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
+import { CryptoData, ExchangeRates } from './types';
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
-
-async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<any> {
+export async function fetchCryptoData(cryptoId: string): Promise<CryptoData> {
     try {
-        const response = await axios.get(url);
+        const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${cryptoId}`);
         return response.data;
     } catch (error) {
-        if (retries > 0 && isNetworkError(error)) {
-            console.warn(`Retrying... ${MAX_RETRIES - retries + 1}/${MAX_RETRIES}`);
-            await delay(RETRY_DELAY_MS);
-            return fetchWithRetry(url, retries - 1);
-        } else {
-            throw new Error(`Failed to fetch data: ${error}`);
-        }
+        console.error(`Failed to fetch data for ${cryptoId}:`, error);
+        throw new Error('Could not fetch crypto data');
     }
 }
 
-function isNetworkError(error: AxiosError): boolean {
-    return !error.response;
+export async function fetchExchangeRates(baseCurrency: string): Promise<ExchangeRates> {
+    try {
+        const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=${baseCurrency}`);
+        return response.data;
+    } catch (error) {
+        console.error(`Failed to fetch exchange rates for ${baseCurrency}:`, error);
+        throw new Error('Could not fetch exchange rates');
+    }
 }
 
-function delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+export function formatCryptoData(data: CryptoData): string {
+    return `Name: ${data.name}, Symbol: ${data.symbol}, Price: $${data.market_data.current_price.usd}`;
 }
 
-export { fetchWithRetry };
+export function getCurrentPrice(data: CryptoData): number {
+    return data.market_data.current_price.usd;
+}
