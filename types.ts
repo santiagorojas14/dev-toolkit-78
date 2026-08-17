@@ -1,30 +1,42 @@
-type Transaction = {
+// Definitions for various types used in the crypto application
+
+// Represents a cryptocurrency with essential details
+export interface CryptoCurrency {
     id: string;
+    name: string;
+    symbol: string;
+    currentPrice: number;
+    marketCap: number;
+    volume: number;
+}
+
+// Response format for fetching cryptocurrency data
+export interface CryptoApiResponse {
+    data: CryptoCurrency[];
+    status: string;
+}
+
+// Represents a transaction for a crypto exchange
+export interface Transaction {
+    transactionId: string;
+    fromAddress: string;
+    toAddress: string;
     amount: number;
-    timestamp: Date;
-};
+    timestamp: number;
+    status: 'pending' | 'completed' | 'failed';
+}
 
-export const validateTransaction = (transaction: Transaction): boolean => {
-    if (!transaction.id || typeof transaction.id !== 'string') {
-        console.error('Invalid transaction ID.');
-        return false;
-    }
-    if (transaction.amount <= 0 || typeof transaction.amount !== 'number') {
-        console.error('Invalid transaction amount.');
-        return false;
-    }
-    if (!(transaction.timestamp instanceof Date) || isNaN(transaction.timestamp.getTime())) {
-        console.error('Invalid transaction timestamp.');
-        return false;
-    }
-    return true;
-};
+// Represents user information for wallet management
+export interface User {
+    userId: string;
+    email: string;
+    walletAddress: string;
+    balance: number;
+}
 
-export const processTransactions = (transactions: Transaction[]): void => {
-    transactions.forEach(transaction => {
-        if (validateTransaction(transaction)) {
-            console.log(`Processing transaction ${transaction.id}...`);
-            // Further processing logic here
-        }
-    });
+// Configuration options for the api client
+type ApiConfig = {
+    baseUrl: string;
+    apiKey: string;
+    timeout: number;
 };
