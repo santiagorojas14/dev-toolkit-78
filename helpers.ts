@@ -1,41 +1,25 @@
-// Utility functions for crypto-related tasks
-
-/**
- * Generates a random hexadecimal string of the specified length.
- *
- * @param length - The length of the desired hexadecimal string.
- * @returns A random hexadecimal string.
- */
-function generateRandomHex(length: number): string {
-    const characters = '0123456789abcdef';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        const randomIndex = Math.floor(Math.random() * characters.length);
-        result += characters[randomIndex];
-    }
-    return result;
+export function isValidAddress(address: string): boolean {
+  const regex = /^(0x)?[0-9a-f]{40}$/i;
+  return regex.test(address);
 }
 
-/**
- * Converts a currency amount from one denomination to another based on the provided exchange rate.
- *
- * @param amount - The amount to convert.
- * @param exchangeRate - The rate to use for conversion.
- * @returns The converted amount.
- */
-function convertCurrency(amount: number, exchangeRate: number): number {
-    return amount * exchangeRate;
+export function formatTransactionAmount(amount: number, decimals: number = 18): string {
+  return (amount / Math.pow(10, decimals)).toFixed(decimals);
 }
 
-/**
- * Validates a cryptocurrency address to ensure it meets specified format criteria.
- *
- * @param address - The cryptocurrency address to validate.
- * @returns True if valid, false if invalid.
- */
-function isValidCryptoAddress(address: string): boolean {
-    const addressRegex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/; // Simple regex for Bitcoin
-    return addressRegex.test(address);
+export function calculateGasPrice(basePrice: number, premiumMultiplier: number = 1.2): number {
+  return basePrice * premiumMultiplier;
 }
 
-export { generateRandomHex, convertCurrency, isValidCryptoAddress };
+export function logError(error: any): void {
+  console.error(`[ERROR] ${new Date().toISOString()}:`, error);
+}
+
+export function parseTransactionData(data: string): Record<string, any> {
+  try {
+    return JSON.parse(data);
+  } catch (error) {
+    logError('Failed to parse transaction data');
+    return {};
+  }
+}
