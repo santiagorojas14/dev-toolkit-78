@@ -1,42 +1,68 @@
-// Definitions for various types used in the crypto application
-
-// Represents a cryptocurrency with essential details
-export interface CryptoCurrency {
-    id: string;
-    name: string;
-    symbol: string;
-    currentPrice: number;
-    marketCap: number;
-    volume: number;
+export interface CryptoConfig {
+  network: string;
+  chainId: number;
+  defaultGasLimit: number;
 }
 
-// Response format for fetching cryptocurrency data
-export interface CryptoApiResponse {
-    data: CryptoCurrency[];
-    status: string;
+/**
+ * Represents a user's crypto wallet
+ */
+export interface Wallet {
+  address: string;
+  privateKey: string;
+  balance: number;
+  tokens: TokenBalance[];
 }
 
-// Represents a transaction for a crypto exchange
+/**
+ * Token balance details
+ */
+export interface TokenBalance {
+  tokenAddress: string;
+  symbol: string;
+  amount: number;
+  decimals: number;
+}
+
+/**
+ * Crypto transaction structure
+ */
 export interface Transaction {
-    transactionId: string;
-    fromAddress: string;
-    toAddress: string;
-    amount: number;
-    timestamp: number;
-    status: 'pending' | 'completed' | 'failed';
+  from: string;
+  to: string;
+  amount: number;
+  fee: number;
+  timestamp: number;
+  data?: string;
 }
 
-// Represents user information for wallet management
-export interface User {
-    userId: string;
-    email: string;
-    walletAddress: string;
-    balance: number;
+/**
+ * Calculates total balance including tokens
+ * @param wallet user wallet
+ * @returns total amount
+ */
+export function calculateTotalBalance(wallet: Wallet): number {
+  const tokenTotal = wallet.tokens.reduce((sum, token) => sum + token.amount, 0);
+  return wallet.balance + tokenTotal;
 }
 
-// Configuration options for the api client
-type ApiConfig = {
-    baseUrl: string;
-    apiKey: string;
-    timeout: number;
-};
+/**
+ * Creates a transaction
+ * @param from from address
+ * @param to to address
+ * @param amount transfer amount
+ * @param fee transaction fee
+ * @returns transaction object
+ */
+export function createTransaction(from: string, to: string, amount: number, fee: number = 0.01): Transaction {
+  return { from, to, amount, fee, timestamp: Date.now() };
+}
+
+/**
+ * Checks address validity
+ * @param address hex address
+ * @returns boolean valid or not
+ */
+export function isValidAddress(address: string): boolean {
+  return address.length === 42 && address.startsWith('0x');
+}
