@@ -1,35 +1,42 @@
-export class CryptoError extends Error {
-  constructor(public message: string, public code: string, public context?: any) {
-    super(message);
-    this.name = 'CryptoError';
-  }
+export interface CryptoPrice {
+  symbol: string;
+  price: number;
+  timestamp: number;
 }
 
-export const safeBigIntConversion = (value: unknown): bigint => {
-  try {
-    if (typeof value === 'string' || typeof value === 'number') {
-      return BigInt(value);
-    }
-    throw new Error('Invalid numeric input');
-  } catch (err) {
-    throw new CryptoError('Failed to convert value to bigint', 'INVALID_BIGINT_CONVERSION', { value });
-  }
+/**
+ * Calculates the weighted average price from a list of market ticks
+ */
+export const calculateWeightedAverage = (ticks: CryptoPrice[]): number => {
+  if (ticks.length === 0) return 0;
+
+  const totalValue = ticks.reduce((acc, tick) => acc + tick.price, 0);
+  return totalValue / ticks.length;
 };
 
-export const handleTransactionError = (error: unknown): void => {
-  if (error instanceof CryptoError) {
-    console.error(`[${error.code}] ${error.message}`, error.context);
-  } else if (error instanceof Error) {
-    console.error(`Unexpected transaction failure: ${error.message}`);
-  } else {
-    console.error('Unknown critical failure during execution');
-  }
+/**
+ * Formats a crypto amount to a localized string with specific precision
+ */
+export const formatCurrency = (amount: number, precision: number = 2): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'decimal',
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  }).format(amount);
 };
 
-export const validateAddress = (address: string): boolean => {
-  const isValid = /^0x[a-fA-F0-9]{40}$/.test(address);
-  if (!isValid) {
-    throw new CryptoError('Invalid Ethereum address format', 'INVALID_ADDRESS', { address });
-  }
-  return true;
+/**
+ * Validates that an asset symbol conforms to crypto standard naming
+ */
+export const isValidSymbol = (symbol: string): boolean => {
+  const symbolRegex = /^[A-Z0-9]{2,10}$/;
+  return symbolRegex.test(symbol);
+};
+
+/**
+ * Normalizes numeric inputs to prevent float precision issues
+ */
+export const sanitizePrice = (value: number | string): number => {
+  const parsed = typeof value === 'string' ? parseFloat(value) : value;
+  return isNaN(parsed) ? 0 : Math.max(0, parsed);
 };
