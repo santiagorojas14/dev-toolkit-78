@@ -1,60 +1,68 @@
-import * as crypto from 'crypto';
+/**
+ * Utility helpers for converting crypto token amounts between human-readable
+ * decimal strings and their raw BigInt representations (e.g., Wei, Satoshis).
+ */
 
-export interface HashOptions {
-  algorithm?: string;
-  encoding?: 'hex' | 'base64';
-}
-
-// Core cryptographic hash computation
-export function computeHash(input: string, options: HashOptions = {}): string {
-  const algorithm = options.algorithm || 'sha256';
-  const encoding = options.encoding || 'hex';
-  const hash = crypto.createHash(algorithm);
-  hash.update(input, 'utf8');
-  return hash.digest(encoding);
-}
-
-export function generateRandomBytes(length: number): string {
-  if (length <= 0) {
-    throw new Error('Length must be positive');
+/**
+ * Converts a human-readable token amount string to a BigInt based on decimal places.
+ * Crucial for avoiding floating-point arithmetic errors in crypto transactions.
+ * 
+ * @param amountStr The human-readable string (e.g., "1.234")
+ * @param decimals The token decimal precision (e.g., 18 for ETH, 8 for BTC)
+ * @returns BigInt representation of the amount
+ */
+export function toBigIntAmount(amountStr: string, decimals: number): bigint {
+  if (!amountStr || isNaN(Number(amountStr))) {
+    throw new Error("Invalid amount string provided");
   }
-  return crypto.randomBytes(length).toString('hex');
+
+  const [integerPart, fractionalPart = ""] = amountStr.split(".");
+  const paddedFraction = fractionalPart
+    .slice(0, decimals)
+    .padEnd(decimals, "0");
+  
+  const combined = `${integerPart}${paddedFraction}`;
+  return BigInt(combined);
 }
 
-// Derives a secure key using PBKDF2
-export function deriveKeyFromPassword(password: string, salt: string, iterations: number = 100000, keyLen: number = 32): string {
-  const key = crypto.pbkdf2Sync(
-    password,
-    Buffer.from(salt, 'hex'),
-    iterations,
-    keyLen,
-    'sha512'
-  );
-  return key.toString('hex');
-}
+/**
+ * Converts a BigInt representation of a token amount back to a human-readable decimal string.
+ * 
+ * @param amount The BigInt representation (e.g., 1000000000000000000n)
+ * @param decimals The token decimal precision (e.g., 18)
+ * @param precision Optional decimal places to include in the returned string (defaults to decimals)
+ * @returns A formatted decimal string representation
+ */
+export function fromBigIntAmount(
+  amount: bigint,
+  decimals: number,
+  precision?: number
+): string {
+  const amountStr = amount.toString();
+  const negative = amount < 0n;
+  const absoluteStr = negative ? amountStr.slice(1) : amountStr;
 
-export function constantTimeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-}
+  let integerPart = "0";
+  let fractionalPart = "";
 
-export function hexToBytes(hex: string): Uint8Array {
-  if (hex.length % 2 !== 0) {
-    throw new Error('Hex string must have even length');
+  if (absoluteStr.length <= decimals) {
+    fractionalPart = absoluteStr.padStart(decimals, "0");
+  } else {
+    const splitIndex = absoluteStr.length - decimals;
+    integerPart = absoluteStr.slice(0, splitIndex);
+    fractionalPart = absoluteStr.slice(splitIndex);
   }
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
-}
 
-export function isValidCryptoAddress(address: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(address);
+  // Clean trailing zeros
+  fractionalPart = fractionalPart.replace(/0+$/, "");
+
+  // Apply precision formatting if requested
+  if (precision !== undefined && precision < decimals) {
+    fractionalPart = fractionalPart.slice(0, precision).replace(/0+$/, "");
+  }
+
+  const sign = negative ? "-" : "";
+  return fractionalPart.length > 0
+    ? `${sign}${integerPart}.${fractionalPart}`
+    : `${sign}${integerPart}`;
 }
