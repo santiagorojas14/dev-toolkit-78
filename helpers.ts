@@ -1,34 +1,34 @@
-export type Wei = bigint;
+export class CryptoError extends Error {
+  constructor(public code: string, message: string, public retryable: boolean = false) {
+    super(message);
+    this.name = 'CryptoError';
+  }
+}
 
-/**
- * Converts human-readable token amount to Wei
- */
-export const toWei = (amount: number, decimals: number = 18): Wei => {
-  const factor = BigInt(10) ** BigInt(decimals);
-  return BigInt(Math.floor(amount * 10 ** decimals)) * factor / BigInt(10 ** decimals);
+export const validateAddress = (address: string): boolean => {
+  if (!address || typeof address !== 'string') return false;
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
 
-/**
- * Formats Wei back to human-readable string
- */
-export const fromWei = (wei: Wei, decimals: number = 18): string => {
-  const s = wei.toString();
-  const pad = s.padStart(decimals + 1, '0');
-  const integer = pad.slice(0, -decimals) || '0';
-  const fraction = pad.slice(-decimals).replace(/0+$/, '');
-  return fraction ? `${integer}.${fraction}` : integer;
+export const safeExecute = async <T>(fn: () => Promise<T>): Promise<T | null> => {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (error instanceof CryptoError && error.retryable) {
+      console.warn(`Retryable error encountered: ${error.message}`);
+    } else {
+      console.error('Fatal execution error:', error.message);
+    }
+    return null;
+  }
 };
 
-/**
- * Safely parses hex strings to bigints
- */
-export const parseHex = (hex: string): bigint => {
-  return BigInt(hex.startsWith('0x') ? hex : `0x${hex}`);
-};
-
-/**
- * Calculates percentage slippage
- */
-export const getSlippageAmount = (amount: Wei, basisPoints: number): Wei => {
-  return (amount * BigInt(basisPoints)) / BigInt(10000);
+export const formatBalance = (balance: bigint, decimals: number = 18): string => {
+  try {
+    if (balance < 0n) throw new Error('Negative balance');
+    const divisor = 10n ** BigInt(decimals);
+    return (Number(balance) / Number(divisor)).toFixed(4);
+  } catch (err) {
+    return '0.0000';
+  }
 };
