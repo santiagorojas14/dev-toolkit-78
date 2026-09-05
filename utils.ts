@@ -1,42 +1,38 @@
-export interface CryptoPrice {
+export interface PriceData {
   symbol: string;
   price: number;
   timestamp: number;
 }
 
 /**
- * Calculates the weighted average price from a list of market ticks
+ * Normalizes raw websocket data into standardized price format
  */
-export const calculateWeightedAverage = (ticks: CryptoPrice[]): number => {
-  if (ticks.length === 0) return 0;
+export const formatCryptoPrice = (data: any): PriceData => {
+  if (!data || typeof data.p !== 'string' || typeof data.s !== 'string') {
+    throw new Error('invalid crypto price payload structure');
+  }
 
-  const totalValue = ticks.reduce((acc, tick) => acc + tick.price, 0);
-  return totalValue / ticks.length;
+  return {
+    symbol: data.s.toUpperCase(),
+    price: parseFloat(data.p),
+    timestamp: data.t || Date.now(),
+  };
 };
 
 /**
- * Formats a crypto amount to a localized string with specific precision
+ * Calculates percentage change between two price points
  */
-export const formatCurrency = (amount: number, precision: number = 2): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'decimal',
-    minimumFractionDigits: precision,
-    maximumFractionDigits: precision,
-  }).format(amount);
+export const calculateChange = (current: number, previous: number): number => {
+  if (previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
 };
 
 /**
- * Validates that an asset symbol conforms to crypto standard naming
+ * Precision truncation for volatile asset values
  */
-export const isValidSymbol = (symbol: string): boolean => {
-  const symbolRegex = /^[A-Z0-9]{2,10}$/;
-  return symbolRegex.test(symbol);
-};
-
-/**
- * Normalizes numeric inputs to prevent float precision issues
- */
-export const sanitizePrice = (value: number | string): number => {
-  const parsed = typeof value === 'string' ? parseFloat(value) : value;
-  return isNaN(parsed) ? 0 : Math.max(0, parsed);
+export const formatDisplayPrice = (value: number, decimals: number = 2): string => {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 };
