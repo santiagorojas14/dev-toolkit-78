@@ -1,54 +1,50 @@
-function isValidCryptoInput(input: unknown): boolean {
-  if (typeof input !== 'string' || input.length === 0) {
-    return false;
-  }
-
-  // Check for valid transaction hash (64 hex chars) or Ethereum address (with 0x prefix)
-  const txHashPattern = /^[0-9a-fA-F]{64}$/;
-  const ethAddressPattern = /^0x[0-9a-fA-F]{40}$/;
-  return txHashPattern.test(input) || ethAddressPattern.test(input);
+export interface CryptoConfig {
+  rpcUrl: string;
+  chainId: number;
+  maxRetries: number;
+  timeoutMs: number;
+  gasMultiplier: number;
+  apiKey?: string;
 }
 
-export function processCryptoInputs(rawInputs: unknown[]): Array<{ valid: boolean; value: string; processed: any }> {
-  const processedResults: Array<{ valid: boolean; value: string; processed: any }> = [];
+export const DEFAULT_CONFIG: CryptoConfig = {
+  rpcUrl: 'https://cloudflare-eth.com',
+  chainId: 1,
+  maxRetries: 3,
+  timeoutMs: 10000,
+  gasMultiplier: 1.15,
+};
 
-  // Main processing loop with input validation
-  for (const rawInput of rawInputs) {
-    const inputStr = String(rawInput || '').trim();
-    if (!isValidCryptoInput(inputStr)) {
-      processedResults.push({
-        valid: false,
-        value: inputStr,
-        processed: null
-      });
-      continue;
-    }
+/**
+ * Merges runtime overrides and environment variables with default config settings.
+ */
+export function loadConfig(userOptions: Partial<CryptoConfig> = {}): CryptoConfig {
+  const envOverrides: Partial<CryptoConfig> = {};
 
-    // Practical processing for crypto toolkit - normalize and flag type
-    const processed = {
-      original: inputStr,
-      length: inputStr.length,
-      isAddress: inputStr.startsWith('0x') && inputStr.length === 42,
-      normalized: inputStr.toLowerCase()
-    };
-    processedResults.push({
-      valid: true,
-      value: inputStr,
-      processed
-    });
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.CRYPTO_RPC_URL) envOverrides.rpcUrl = process.env.CRYPTO_RPC_URL;
+    if (process.env.CRYPTO_CHAIN_ID) envOverrides.chainId = Number(process.env.CRYPTO_CHAIN_ID);
+    if (process.env.CRYPTO_API_KEY) envOverrides.apiKey = process.env.CRYPTO_API_KEY;
   }
 
-  return processedResults;
+  const finalConfig: CryptoConfig = {
+    ...DEFAULT_CONFIG,
+    ...envOverrides,
+    ...userOptions,
+  };
+
+  validateConfig(finalConfig);
+  return finalConfig;
 }
 
-// Sample data for demonstration in crypto context
-const sampleInputs: unknown[] = [
-  '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-  'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3',
-  'short',
-  '0xinvalidlengthaddresshere12345678901234567890',
-  987654321
-];
-
-const output = processCryptoInputs(sampleInputs);
-console.log(JSON.stringify(output, null, 2));
+/**
+ * Ensures key properties meet basic sanity requirements.
+ */
+function validateConfig(config: CryptoConfig): void {
+  if (!config.rpcUrl || !config.rpcUrl.startsWith('http')) {
+    throw new Error('Invalid RPC URL: must begin with http or https');
+  }
+  if (Number.isNaN(config.chainId) || config.chainId <= 0) {
+    throw new Error('Invalid chain ID: must be a positive integer');
+  }
+}
