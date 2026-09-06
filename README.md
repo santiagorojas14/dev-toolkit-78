@@ -1,27 +1,50 @@
 # dev-toolkit-78
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-dev-toolkit-78 is a TypeScript toolkit that helps crypto developers interact with blockchain networks without writing repetitive boilerplate. It focuses on reliable wallet handling, transaction construction, and on-chain queries for production-grade applications.
+`dev-toolkit-78` is a high-performance TypeScript library designed to streamline the integration of decentralized financial protocols into modern web applications. It provides a robust abstraction layer for interacting with EVM-compatible chains, simplifying transaction lifecycle management and data normalization.
 
 ## Features
-- Unified client for Ethereum, Polygon, and Arbitrum with automatic network switching and RPC failover.
-- Secure transaction signing supporting EIP-1559 fees and hardware wallet integration via Ledger.
-- Gas estimation and simulation tools that predict transaction outcomes before broadcasting.
-- Type-safe helpers for common DeFi operations including token approvals and balance tracking.
+
+*   **Multichain Transaction Builder:** Unified interface for constructing, signing, and broadcasting transactions across Ethereum, Polygon, and Arbitrum.
+*   **Real-time Price Feed Integration:** WebSocket-based event listener for sub-millisecond crypto asset pricing using decentralized oracles.
+*   **Type-Safe ABI Interop:** Automatic TypeScript type generation for smart contract ABIs to ensure compile-time safety during contract interactions.
+*   **Gas Estimation Engine:** Intelligent fee prediction algorithms that minimize stuck transactions by analyzing historical network congestion.
 
 ## Installation
 
+Install the toolkit via npm:
+
 ```bash
-npm install dev-toolkit-78
+npm install dev-toolkit-78 ethers
+```
+
+Or using yarn:
+
+```bash
+yarn add dev-toolkit-78 ethers
 ```
 
 ## Basic Usage
 
-```typescript
-import { createClient, getBalance } from 'dev-toolkit-78';
+The following example demonstrates how to initialize the toolkit and fetch a real-time price for a specific asset pair:
 
-const client = createClient({ network: 'polygon' });
-const balance = await getBalance('0x742d35Cc6634C0532925a3b844Bc454e4438f44e', 'USDC');
-console.log(balance);
+```typescript
+import { Toolkit } from 'dev-toolkit-78';
+
+const client = new Toolkit({
+  network: 'mainnet',
+  providerUrl: process.env.RPC_URL
+});
+
+async function getAssetPrice() {
+  const price = await client.oracle.getPrice('ETH/USD');
+  console.log(`Current ETH Price: $${price.formatted}`);
+}
+
+getAssetPrice().catch(console.error);
 ```
+
+## License
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
