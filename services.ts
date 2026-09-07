@@ -1,63 +1,58 @@
-export class BlockchainError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly status?: number
-  ) {
-    super(message);
-    this.name = 'BlockchainError';
-  }
+export interface TokenBalance {
+  symbol: string;
+  amount: number;
+  priceUsd: number;
 }
 
-export interface TokenPrice {
-  usd: number;
-  lastUpdated: number;
+export interface PortfolioSummary {
+  totalValueUsd: number;
+  topAsset: string;
+  allocations: Record<string, number>;
 }
 
-export class CryptoPriceService {
-  private readonly baseUrl = 'https://api.coingecko.com/api/v3';
-
-  constructor(private readonly apiKey?: string) {}
-
+export class CryptoPortfolioService {
   /**
-   * Fetches USD price for a given coin ID, handling API errors, missing tokens, and rate limits.
+   * Calculates portfolio metrics and percentage allocation per asset.
    */
-  async fetchTokenPrice(tokenId: string): Promise<TokenPrice> {
-    if (!tokenId || typeof tokenId !== 'string' || tokenId.trim() === '') {
-      throw new BlockchainError('Invalid token identifier provided', 'INVALID_TOKEN_ID');
-    }
-
-    const cleanTokenId = tokenId.toLowerCase().trim();
-    const url = `${this.baseUrl}/simple/price?ids=${cleanTokenId}&vs_currencies=usd`;
-
-    try {
-      const headers: HeadersInit = this.apiKey ? { 'x-cg-demo-api-key': this.apiKey } : {};
-      const response = await fetch(url, { headers });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new BlockchainError('Crypto API rate limit exceeded', 'RATE_LIMIT_EXCEEDED', 429);
-        }
-        throw new BlockchainError(`API responded with status ${response.status}`, 'API_ERROR', response.status);
-      }
-
-      const data = await response.json() as Record<string, { usd?: number }>;
-
-      // Handle edge case where token exists but has no market valuation or invalid name
-      if (!data || !data[cleanTokenId] || data[cleanTokenId].usd === undefined) {
-        throw new BlockchainError(`Token '${cleanTokenId}' not found or has no price data`, 'TOKEN_NOT_FOUND', 404);
-      }
-
+  public calculateMetrics(balances: TokenBalance[]): PortfolioSummary {
+    if (!balances || balances.length === 0) {
       return {
-        usd: data[cleanTokenId].usd!,
-        lastUpdated: Date.now(),
+        totalValueUsd: 0,
+        topAsset: 'NONE',
+        allocations: {},
       };
-    } catch (error) {
-      if (error instanceof BlockchainError) {
-        throw error;
-      }
-      const message = error instanceof Error ? error.message : 'Unknown network failure';
-      throw new BlockchainError(`Failed to fetch crypto price: ${message}`, 'NETWORK_FAILURE');
     }
+
+    let totalValueUsd = 0;
+    let topAsset = balances[0].symbol;
+    let maxAssetValue = -1;
+
+    const assetValues: Record<string, number> = {};
+
+    // Aggregate values per symbol
+    for (const token of balances) {
+      const tokenValue = token.amount * token.priceUsd;
+      assetValues[token.symbol] = (assetValues[token.symbol] || 0) + tokenValue;
+      totalValueUsd += tokenValue;
+
+      if (assetValues[token.symbol] > maxAssetValue) {
+        maxAssetValue = assetValues[token.symbol];
+        topAsset = token.symbol;
+      }
+    }
+
+    // Calculate percentage allocations
+    const allocations: Record<string, number> = {};
+    if (totalValueUsd > 0) {
+      for (const [symbol, val] of Object.entries(assetValues)) {
+        allocations[symbol] = Number(((val / totalValueUsd) * 100).toFixed(2));
+      }
+    }
+
+    return {
+      totalValueUsd: Number(totalValueUsd.toFixed(2)),
+      topAsset,
+      allocations,
+    };
   }
 }
