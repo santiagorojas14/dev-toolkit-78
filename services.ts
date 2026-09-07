@@ -1,58 +1,58 @@
-export interface TokenBalance {
-  symbol: string;
-  amount: number;
-  priceUsd: number;
+export interface BalanceInfo {
+  balance: string;
+  decimals: number;
+  timestamp: number;
 }
 
-export interface PortfolioSummary {
-  totalValueUsd: number;
-  topAsset: string;
-  allocations: Record<string, number>;
-}
+export class TokenBalanceService {
+  private balanceCache: Map<string, BalanceInfo> = new Map();
+  private readonly cacheTtlMs: number;
 
-export class CryptoPortfolioService {
-  /**
-   * Calculates portfolio metrics and percentage allocation per asset.
-   */
-  public calculateMetrics(balances: TokenBalance[]): PortfolioSummary {
-    if (!balances || balances.length === 0) {
-      return {
-        totalValueUsd: 0,
-        topAsset: 'NONE',
-        allocations: {},
-      };
+  constructor(cacheTtlSeconds: number = 30) {
+    this.cacheTtlMs = cacheTtlSeconds * 1000;
+  }
+
+  private getCacheKey(address: string, tokenAddress: string): string {
+    return `${address.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+  }
+
+  public getCachedBalance(address: string, tokenAddress: string): BalanceInfo | null {
+    const key = this.getCacheKey(address, tokenAddress);
+    const cached = this.balanceCache.get(key);
+    if (!cached) return null;
+
+    const isExpired = Date.now() - cached.timestamp > this.cacheTtlMs;
+    if (isExpired) {
+      this.balanceCache.delete(key);
+      return null;
     }
 
-    let totalValueUsd = 0;
-    let topAsset = balances[0].symbol;
-    let maxAssetValue = -1;
+    return cached;
+  }
 
-    const assetValues: Record<string, number> = {};
-
-    // Aggregate values per symbol
-    for (const token of balances) {
-      const tokenValue = token.amount * token.priceUsd;
-      assetValues[token.symbol] = (assetValues[token.symbol] || 0) + tokenValue;
-      totalValueUsd += tokenValue;
-
-      if (assetValues[token.symbol] > maxAssetValue) {
-        maxAssetValue = assetValues[token.symbol];
-        topAsset = token.symbol;
-      }
+  public async fetchBalance(
+    address: string,
+    tokenAddress: string,
+    rpcProviderCall: () => Promise<{ balance: string; decimals: number }>
+  ): Promise<BalanceInfo> {
+    const cached = this.getCachedBalance(address, tokenAddress);
+    if (cached) {
+      return cached;
     }
 
-    // Calculate percentage allocations
-    const allocations: Record<string, number> = {};
-    if (totalValueUsd > 0) {
-      for (const [symbol, val] of Object.entries(assetValues)) {
-        allocations[symbol] = Number(((val / totalValueUsd) * 100).toFixed(2));
-      }
-    }
-
-    return {
-      totalValueUsd: Number(totalValueUsd.toFixed(2)),
-      topAsset,
-      allocations,
+    const result = await rpcProviderCall();
+    const balanceInfo: BalanceInfo = {
+      balance: result.balance,
+      decimals: result.decimals,
+      timestamp: Date.now(),
     };
+
+    const key = this.getCacheKey(address, tokenAddress);
+    this.balanceCache.set(key, balanceInfo);
+    return balanceInfo;
+  }
+
+  public clearCache(): void {
+    this.balanceCache.clear();
   }
 }
