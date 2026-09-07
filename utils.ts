@@ -1,36 +1,50 @@
 export interface RetryOptions {
-  maxAttempts: number;
-  delayMs: number;
+  retries?: number;
+  minTimeout?: number;
+  maxTimeout?: number;
+  factor?: number;
+  onRetry?: (error: any, attempt: number) => void;
 }
 
 /**
- * executes async functions with exponential backoff for network resilience
+ * Executes an asynchronous operation with exponential backoff retry logic.
+ * Tailored for flaky blockchain RPC calls or rate-limited crypto API endpoints.
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
+  options: RetryOptions = {}
 ): Promise<T> {
-  let lastError: unknown;
+  const {
+    retries = 3,
+    minTimeout = 1000,
+    maxTimeout = 10000,
+    factor = 2,
+    onRetry,
+  } = options;
 
-  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+  let attempt = 0;
+
+  while (true) {
     try {
       return await fn();
-    } catch (err) {
-      lastError = err;
-      if (attempt === options.maxAttempts) break;
+    } catch (error) {
+      attempt++;
+      if (attempt > retries) {
+        throw error;
+      }
 
-      const backoff = options.delayMs * Math.pow(2, attempt - 1);
-      await new Promise((resolve) => setTimeout(resolve, backoff));
+      if (onRetry) {
+        onRetry(error, attempt);
+      }
+
+      // Calculate exponential backoff delay with jitter to avoid thundering herd
+      const delay = Math.min(
+        minTimeout * Math.pow(factor, attempt - 1),
+        maxTimeout
+      );
+      const jitter = Math.random() * 200;
+
+      await new Promise((resolve) => setTimeout(resolve, delay + jitter));
     }
   }
-
-  throw lastError;
-}
-
-/**
- * checks if an error originates from a network timeout or connection reset
- */
-export function isNetworkError(error: any): boolean {
-  const networkErrors = ['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'];
-  return error?.code && networkErrors.includes(error.code);
 }
