@@ -1,50 +1,41 @@
-export interface CryptoConfig {
-  rpcUrl: string;
+export interface ChainConfig {
   chainId: number;
-  maxRetries: number;
-  timeoutMs: number;
-  gasMultiplier: number;
-  apiKey?: string;
+  rpcUrl: string;
+  explorer: string;
 }
 
-export const DEFAULT_CONFIG: CryptoConfig = {
-  rpcUrl: 'https://cloudflare-eth.com',
-  chainId: 1,
-  maxRetries: 3,
-  timeoutMs: 10000,
-  gasMultiplier: 1.15,
+export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
+  mainnet: {
+    chainId: 1,
+    rpcUrl: 'https://rpc.ankr.com/eth',
+    explorer: 'https://etherscan.io'
+  },
+  polygon: {
+    chainId: 137,
+    rpcUrl: 'https://polygon-rpc.com',
+    explorer: 'https://polygonscan.com'
+  }
 };
 
+export const DEFAULT_TIMEOUT_MS = 30000;
+export const MAX_RETRY_ATTEMPTS = 3;
+
 /**
- * Merges runtime overrides and environment variables with default config settings.
+ * Resolves RPC URL for a given network
  */
-export function loadConfig(userOptions: Partial<CryptoConfig> = {}): CryptoConfig {
-  const envOverrides: Partial<CryptoConfig> = {};
-
-  if (typeof process !== 'undefined' && process.env) {
-    if (process.env.CRYPTO_RPC_URL) envOverrides.rpcUrl = process.env.CRYPTO_RPC_URL;
-    if (process.env.CRYPTO_CHAIN_ID) envOverrides.chainId = Number(process.env.CRYPTO_CHAIN_ID);
-    if (process.env.CRYPTO_API_KEY) envOverrides.apiKey = process.env.CRYPTO_API_KEY;
+export function getRpcUrl(network: string): string {
+  const config = SUPPORTED_CHAINS[network];
+  if (!config) {
+    throw new Error(`Unsupported network: ${network}`);
   }
-
-  const finalConfig: CryptoConfig = {
-    ...DEFAULT_CONFIG,
-    ...envOverrides,
-    ...userOptions,
-  };
-
-  validateConfig(finalConfig);
-  return finalConfig;
+  return config.rpcUrl;
 }
 
 /**
- * Ensures key properties meet basic sanity requirements.
+ * Validates environment integrity for critical services
  */
-function validateConfig(config: CryptoConfig): void {
-  if (!config.rpcUrl || !config.rpcUrl.startsWith('http')) {
-    throw new Error('Invalid RPC URL: must begin with http or https');
-  }
-  if (Number.isNaN(config.chainId) || config.chainId <= 0) {
-    throw new Error('Invalid chain ID: must be a positive integer');
+export function validateConfig(): void {
+  if (!process.env.PRIVATE_KEY) {
+    throw new Error('Missing required environment variable: PRIVATE_KEY');
   }
 }
