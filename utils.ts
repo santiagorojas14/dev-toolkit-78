@@ -1,54 +1,36 @@
-/**
- * Truncates a crypto address (e.g., Ethereum) to a readable format like 0x1234...abcd
- * @param address The full hex address
- * @param startChars Number of characters to keep at the start (default: 6)
- * @param endChars Number of characters to keep at the end (default: 4)
- */
-export function truncateAddress(
-  address: string,
-  startChars = 6,
-  endChars = 4
-): string {
-  if (!address) return '';
-  if (address.length <= startChars + endChars) return address;
-  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
+export interface RetryOptions {
+  maxAttempts: number;
+  delayMs: number;
 }
 
 /**
- * Formats a BigInt value (such as Wei) into a human-readable decimal string
- * @param value The value in the smallest unit (e.g., Wei)
- * @param decimals The decimal places of the token (default: 18 for ETH)
- * @param precision The maximum number of decimal places to show in the output
+ * executes async functions with exponential backoff for network resilience
  */
-export function formatCryptoAmount(
-  value: bigint,
-  decimals = 18,
-  precision = 4
-): string {
-  const valueStr = value.toString();
-  
-  if (valueStr === '0') return '0';
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
+): Promise<T> {
+  let lastError: unknown;
 
-  // Handle fractions smaller than 1 (e.g., 0.001)
-  if (valueStr.length <= decimals) {
-    const padded = valueStr.padStart(decimals, '0');
-    const fraction = padded.slice(0, precision).replace(/0+$/, '');
-    return fraction.length > 0 ? `0.${fraction}` : '0';
+  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt === options.maxAttempts) break;
+
+      const backoff = options.delayMs * Math.pow(2, attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, backoff));
+    }
   }
 
-  const integerPart = valueStr.slice(0, valueStr.length - decimals);
-  let fractionPart = valueStr.slice(valueStr.length - decimals, valueStr.length - decimals + precision);
-  
-  // Remove trailing zeros
-  fractionPart = fractionPart.replace(/0+$/, '');
-
-  return fractionPart.length > 0 ? `${integerPart}.${fractionPart}` : integerPart;
+  throw lastError;
 }
 
 /**
- * Validates whether a string is a standard 40-character hex address
- * @param address The address string to validate
+ * checks if an error originates from a network timeout or connection reset
  */
-export function isValidHexAddress(address: string): boolean {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
+export function isNetworkError(error: any): boolean {
+  const networkErrors = ['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'];
+  return error?.code && networkErrors.includes(error.code);
 }
