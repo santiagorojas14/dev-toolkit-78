@@ -1,58 +1,36 @@
-export interface BalanceInfo {
-  balance: string;
-  decimals: number;
+interface CryptoPrice {
+  symbol: string;
+  priceUsd: number;
   timestamp: number;
 }
 
-export class TokenBalanceService {
-  private balanceCache: Map<string, BalanceInfo> = new Map();
-  private readonly cacheTtlMs: number;
+/**
+ * Formats raw API price data for internal toolkit consumption
+ */
+export const formatPriceData = (rawData: any): CryptoPrice | null => {
+  if (!rawData || typeof rawData !== 'object') return null;
 
-  constructor(cacheTtlSeconds: number = 30) {
-    this.cacheTtlMs = cacheTtlSeconds * 1000;
-  }
+  const price = parseFloat(rawData.price || rawData.last_price);
+  if (isNaN(price)) return null;
 
-  private getCacheKey(address: string, tokenAddress: string): string {
-    return `${address.toLowerCase()}-${tokenAddress.toLowerCase()}`;
-  }
+  return {
+    symbol: String(rawData.symbol || 'UNKNOWN').toUpperCase(),
+    priceUsd: price,
+    timestamp: Date.now(),
+  };
+};
 
-  public getCachedBalance(address: string, tokenAddress: string): BalanceInfo | null {
-    const key = this.getCacheKey(address, tokenAddress);
-    const cached = this.balanceCache.get(key);
-    if (!cached) return null;
+/**
+ * Calculates percentage change between two price points
+ */
+export const calculateDelta = (oldPrice: number, newPrice: number): number => {
+  if (oldPrice === 0) return 0;
+  return ((newPrice - oldPrice) / oldPrice) * 100;
+};
 
-    const isExpired = Date.now() - cached.timestamp > this.cacheTtlMs;
-    if (isExpired) {
-      this.balanceCache.delete(key);
-      return null;
-    }
-
-    return cached;
-  }
-
-  public async fetchBalance(
-    address: string,
-    tokenAddress: string,
-    rpcProviderCall: () => Promise<{ balance: string; decimals: number }>
-  ): Promise<BalanceInfo> {
-    const cached = this.getCachedBalance(address, tokenAddress);
-    if (cached) {
-      return cached;
-    }
-
-    const result = await rpcProviderCall();
-    const balanceInfo: BalanceInfo = {
-      balance: result.balance,
-      decimals: result.decimals,
-      timestamp: Date.now(),
-    };
-
-    const key = this.getCacheKey(address, tokenAddress);
-    this.balanceCache.set(key, balanceInfo);
-    return balanceInfo;
-  }
-
-  public clearCache(): void {
-    this.balanceCache.clear();
-  }
-}
+/**
+ * Sanitizes crypto address strings by removing whitespace
+ */
+export const sanitizeAddress = (address: string): string => {
+  return address.trim().replace(/\s+/g, '');
+};
