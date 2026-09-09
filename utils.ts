@@ -1,50 +1,35 @@
-export interface RetryOptions {
-  retries?: number;
-  minTimeout?: number;
-  maxTimeout?: number;
-  factor?: number;
-  onRetry?: (error: any, attempt: number) => void;
-}
+import winston from 'winston';
+import 'winston-daily-rotate-file';
 
 /**
- * Executes an asynchronous operation with exponential backoff retry logic.
- * Tailored for flaky blockchain RPC calls or rate-limited crypto API endpoints.
+ * Crypto-focused logger setup for dev-toolkit-78
+ * Rotates daily and keeps logs for 14 days
  */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
-  const {
-    retries = 3,
-    minTimeout = 1000,
-    maxTimeout = 10000,
-    factor = 2,
-    onRetry,
-  } = options;
+export const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      filename: 'logs/crypto-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
 
-  let attempt = 0;
+export const logMarketEvent = (action: string, data: Record<string, any>) => {
+  logger.info(`market_event: ${action}`, { ...data });
+};
 
-  while (true) {
-    try {
-      return await fn();
-    } catch (error) {
-      attempt++;
-      if (attempt > retries) {
-        throw error;
-      }
-
-      if (onRetry) {
-        onRetry(error, attempt);
-      }
-
-      // Calculate exponential backoff delay with jitter to avoid thundering herd
-      const delay = Math.min(
-        minTimeout * Math.pow(factor, attempt - 1),
-        maxTimeout
-      );
-      const jitter = Math.random() * 200;
-
-      await new Promise((resolve) => setTimeout(resolve, delay + jitter));
-    }
-  }
-}
+export const logError = (error: Error, context: string) => {
+  logger.error(`critical_failure: ${context}`, {
+    message: error.message,
+    stack: error.stack
+  });
+};
