@@ -1,56 +1,37 @@
-/**
- * Utility functions for handling high-precision crypto currency values
- * preventing floating-point inaccuracies by using BigInt.
- */
-
-const ETH_DECIMALS = 18;
+export interface RetryOptions {
+  retries: number;
+  delayMs: number;
+}
 
 /**
- * Converts a raw integer string (e.g. Wei) to a decimal representation (e.g. Ether).
+ * Executes a network operation with exponential backoff
  */
-export function formatUnits(value: bigint | string, decimals: number = ETH_DECIMALS): string {
-  const bigintValue = typeof value === 'bigint' ? value : BigInt(value);
-  const negative = bigintValue < 0n;
-  const absoluteValue = negative ? -bigintValue : bigintValue;
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = { retries: 3, delayMs: 1000 }
+): Promise<T> {
+  let lastError: unknown;
 
-  let fraction = (absoluteValue % BigInt(10 ** decimals)).toString();
-  while (fraction.length < decimals) {
-    fraction = '0' + fraction;
+  for (let attempt = 0; attempt <= options.retries; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (attempt < options.retries) {
+        const backoff = options.delayMs * Math.pow(2, attempt);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+      }
+    }
   }
 
-  // Trim trailing zeros from the fraction
-  fraction = fraction.replace(/0+$/, '');
-
-  const whole = (absoluteValue / BigInt(10 ** decimals)).toString();
-  const result = fraction === '' ? whole : `${whole}.${fraction}`;
-
-  return negative ? `-${result}` : result;
+  throw lastError;
 }
 
-/**
- * Converts a human-readable decimal string (e.g. Ether) to raw BigInt units (e.g. Wei).
- */
-export function parseUnits(value: string, decimals: number = ETH_DECIMALS): bigint {
-  const [whole, fraction = ''] = value.split('.');
-  const trimmedFraction = fraction.slice(0, decimals).padEnd(decimals, '0');
-  const wholePart = BigInt(whole) * BigInt(10 ** decimals);
-  const fractionPart = BigInt(trimmedFraction);
-
-  return value.startsWith('-') ? -(wholePart + fractionPart) : wholePart + fractionPart;
-}
-
-/**
- * Formats a crypto balance with its ticker symbol, limiting decimal display.
- */
-export function displayBalance(
-  value: bigint | string,
-  decimals: number = ETH_DECIMALS,
-  displayDecimals: number = 4,
-  symbol: string = 'ETH'
-): string {
-  const formatted = formatUnits(value, decimals);
-  const [whole, fraction = ''] = formatted.split('.');
-  const truncatedFraction = fraction.slice(0, displayDecimals);
-  const displayValue = truncatedFraction ? `${whole}.${truncatedFraction}` : whole;
-  return `${displayValue} ${symbol}`;
-}
+export const isNetworkError = (error: unknown): boolean => {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as any).code === 'ECONNRESET'
+  );
+};
