@@ -1,30 +1,31 @@
-import { createLogger, format, transports, Logger } from 'winston';
-import 'winston-daily-rotate-file';
-import * as path from 'path';
+export interface AppConfig {
+  rpcUrl: string;
+  chainId: number;
+  retryAttempts: number;
+}
 
-const LOG_DIR = path.join(__dirname, '../logs');
+const DEFAULT_CONFIG: AppConfig = {
+  rpcUrl: 'https://mainnet.infura.io/v3/default',
+  chainId: 1,
+  retryAttempts: 3
+};
 
 /**
- * Configuration for crypto service logging
- * Implements daily rotation to manage disk space
+ * Merges environment variables with default configuration
  */
-export const logger: Logger = createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: format.combine(
-    format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    format.errors({ stack: true }),
-    format.json()
-  ),
-  transports: [
-    new transports.Console({
-      format: format.combine(format.colorize(), format.simple())
-    }),
-    new (transports as any).DailyRotateFile({
-      filename: path.join(LOG_DIR, 'dev-toolkit-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d'
-    })
-  ]
-});
+export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+  const envConfig: Partial<AppConfig> = {
+    rpcUrl: process.env.RPC_URL,
+    chainId: process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID, 10) : undefined,
+    retryAttempts: process.env.RETRY_ATTEMPTS ? parseInt(process.env.RETRY_ATTEMPTS, 10) : undefined
+  };
+
+  // Remove undefined env values to prevent overwriting with undefined
+  Object.keys(envConfig).forEach((key) => {
+    if ((envConfig as any)[key] === undefined) {
+      delete (envConfig as any)[key];
+    }
+  });
+
+  return { ...DEFAULT_CONFIG, ...envConfig, ...overrides };
+}
