@@ -1,25 +1,24 @@
 export interface RetryOptions {
   retries: number;
-  delayMs: number;
+  delay: number;
 }
 
 /**
- * Executes a network operation with exponential backoff
+ * executes an async function with exponential backoff
  */
 export async function withRetry<T>(
-  operation: () => Promise<T>,
-  options: RetryOptions = { retries: 3, delayMs: 1000 }
+  fn: () => Promise<T>,
+  options: RetryOptions = { retries: 3, delay: 1000 }
 ): Promise<T> {
   let lastError: unknown;
 
-  for (let attempt = 0; attempt <= options.retries; attempt++) {
+  for (let i = 0; i < options.retries; i++) {
     try {
-      return await operation();
+      return await fn();
     } catch (err) {
       lastError = err;
-      if (attempt < options.retries) {
-        const backoff = options.delayMs * Math.pow(2, attempt);
-        await new Promise((resolve) => setTimeout(resolve, backoff));
+      if (i < options.retries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, options.delay * Math.pow(2, i)));
       }
     }
   }
@@ -27,11 +26,8 @@ export async function withRetry<T>(
   throw lastError;
 }
 
-export const isNetworkError = (error: unknown): boolean => {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as any).code === 'ECONNRESET'
-  );
-};
+/**
+ * generic delay utility for network throttling
+ */
+export const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
