@@ -1,31 +1,35 @@
-export interface AppConfig {
+export interface CryptoConfig {
   rpcUrl: string;
   chainId: number;
   retryAttempts: number;
+  timeoutMs: number;
 }
 
-const DEFAULT_CONFIG: AppConfig = {
-  rpcUrl: 'https://mainnet.infura.io/v3/default',
-  chainId: 1,
-  retryAttempts: 3
+const defaults: CryptoConfig = {
+  rpcUrl: 'https://api.mainnet-beta.solana.com',
+  chainId: 101,
+  retryAttempts: 3,
+  timeoutMs: 5000
 };
 
 /**
- * Merges environment variables with default configuration
+ * Merges partial user config with established defaults
  */
-export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
-  const envConfig: Partial<AppConfig> = {
-    rpcUrl: process.env.RPC_URL,
-    chainId: process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID, 10) : undefined,
-    retryAttempts: process.env.RETRY_ATTEMPTS ? parseInt(process.env.RETRY_ATTEMPTS, 10) : undefined
+export function loadConfig(userConfig: Partial<CryptoConfig> = {}): CryptoConfig {
+  return {
+    ...defaults,
+    ...userConfig,
   };
+}
 
-  // Remove undefined env values to prevent overwriting with undefined
-  Object.keys(envConfig).forEach((key) => {
-    if ((envConfig as any)[key] === undefined) {
-      delete (envConfig as any)[key];
-    }
-  });
-
-  return { ...DEFAULT_CONFIG, ...envConfig, ...overrides };
+/**
+ * Validate required environment connectivity settings
+ */
+export function validateConfig(config: CryptoConfig): void {
+  if (!config.rpcUrl.startsWith('https://')) {
+    throw new Error('Invalid RPC URL: must be HTTPS');
+  }
+  if (config.chainId <= 0) {
+    throw new Error('Invalid chain ID');
+  }
 }
