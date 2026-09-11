@@ -1,30 +1,36 @@
-export interface ChainConfig {
-  rpcUrl: string;
-  chainId: number;
-  nativeCurrency: string;
-}
-
-export interface TransactionResponse {
-  txHash: string;
-  status: 'pending' | 'confirmed' | 'failed';
+export interface CryptoPrice {
+  symbol: string;
+  priceUsd: number;
   timestamp: number;
+  source: string;
 }
 
-export interface CryptoWallet {
-  address: string;
-  balance: bigint;
-  network: string;
+export interface MarketVolume {
+  baseSymbol: string;
+  quoteSymbol: string;
+  volume24h: number;
 }
 
-export type NetworkMode = 'mainnet' | 'testnet' | 'devnet';
+export type PriceMap = Record<string, CryptoPrice>;
 
-export interface ServiceError {
-  code: number;
-  message: string;
-  retryable: boolean;
+/**
+ * Validates crypto price structure
+ */
+export function isValidPrice(data: any): data is CryptoPrice {
+  return (
+    typeof data === 'object' &&
+    typeof data.symbol === 'string' &&
+    typeof data.priceUsd === 'number' &&
+    !isNaN(data.priceUsd) &&
+    typeof data.timestamp === 'number'
+  );
 }
 
-export interface ProtocolFee {
-  basisPoints: number;
-  recipient: string;
-}
+/**
+ * Calculates average from array of price entries
+ */
+export const calculateAveragePrice = (prices: CryptoPrice[]): number => {
+  if (prices.length === 0) return 0;
+  const sum = prices.reduce((acc, curr) => acc + curr.priceUsd, 0);
+  return sum / prices.length;
+};
