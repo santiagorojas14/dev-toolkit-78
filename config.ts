@@ -1,35 +1,45 @@
-export interface CryptoConfig {
+export class CryptoConfigError extends Error {
+  constructor(public message: string, public code: string) {
+    super(message);
+    this.name = 'CryptoConfigError';
+  }
+}
+
+export interface NetworkConfig {
   rpcUrl: string;
   chainId: number;
-  retryAttempts: number;
-  timeoutMs: number;
 }
 
-const defaults: CryptoConfig = {
-  rpcUrl: 'https://api.mainnet-beta.solana.com',
-  chainId: 101,
-  retryAttempts: 3,
-  timeoutMs: 5000
-};
+const DEFAULT_RPC = 'https://mainnet.infura.io/v3/';
 
 /**
- * Merges partial user config with established defaults
+ * Validates environment variables for blockchain connectivity
  */
-export function loadConfig(userConfig: Partial<CryptoConfig> = {}): CryptoConfig {
-  return {
-    ...defaults,
-    ...userConfig,
-  };
-}
+export function getNetworkConfig(): NetworkConfig {
+  const rpcUrl = process.env.RPC_URL || DEFAULT_RPC;
+  const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID, 10) : 1;
 
-/**
- * Validate required environment connectivity settings
- */
-export function validateConfig(config: CryptoConfig): void {
-  if (!config.rpcUrl.startsWith('https://')) {
-    throw new Error('Invalid RPC URL: must be HTTPS');
+  if (!rpcUrl.startsWith('https://')) {
+    throw new CryptoConfigError('Invalid RPC URL scheme', 'INVALID_SCHEME');
   }
-  if (config.chainId <= 0) {
-    throw new Error('Invalid chain ID');
+
+  if (isNaN(chainId) || chainId <= 0) {
+    throw new CryptoConfigError('Chain ID must be a positive integer', 'INVALID_CHAIN_ID');
+  }
+
+  return { rpcUrl, chainId };
+}
+
+/**
+ * Safely loads application configuration with fallbacks
+ */
+export function loadSafeConfig(): NetworkConfig {
+  try {
+    return getNetworkConfig();
+  } catch (error) {
+    if (error instanceof CryptoConfigError) {
+      console.error(`[ConfigError] ${error.code}: ${error.message}`);
+    }
+    return { rpcUrl: DEFAULT_RPC, chainId: 1 };
   }
 }
