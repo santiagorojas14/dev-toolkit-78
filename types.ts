@@ -1,36 +1,33 @@
-export interface CryptoPrice {
-  symbol: string;
-  priceUsd: number;
+export interface TransactionPayload {
+  id: string;
+  amount: number;
+  currency: string;
   timestamp: number;
-  source: string;
 }
 
-export interface MarketVolume {
-  baseSymbol: string;
-  quoteSymbol: string;
-  volume24h: number;
-}
+export const isValidTransaction = (tx: unknown): tx is TransactionPayload => {
+  if (!tx || typeof tx !== 'object') return false;
 
-export type PriceMap = Record<string, CryptoPrice>;
+  const t = tx as Partial<TransactionPayload>;
+  
+  // Basic schema validation for crypto processing
+  const hasValidAmount = typeof t.amount === 'number' && t.amount > 0;
+  const hasValidId = typeof t.id === 'string' && t.id.length > 0;
+  const hasValidCurrency = typeof t.currency === 'string' && t.currency.length >= 3;
 
-/**
- * Validates crypto price structure
- */
-export function isValidPrice(data: any): data is CryptoPrice {
-  return (
-    typeof data === 'object' &&
-    typeof data.symbol === 'string' &&
-    typeof data.priceUsd === 'number' &&
-    !isNaN(data.priceUsd) &&
-    typeof data.timestamp === 'number'
-  );
-}
+  return !!(hasValidAmount && hasValidId && hasValidCurrency);
+};
 
-/**
- * Calculates average from array of price entries
- */
-export const calculateAveragePrice = (prices: CryptoPrice[]): number => {
-  if (prices.length === 0) return 0;
-  const sum = prices.reduce((acc, curr) => acc + curr.priceUsd, 0);
-  return sum / prices.length;
+export const processLoop = (input: unknown[]): TransactionPayload[] => {
+  const validItems: TransactionPayload[] = [];
+
+  for (const item of input) {
+    if (isValidTransaction(item)) {
+      validItems.push(item);
+    } else {
+      console.warn('Skipping invalid crypto transaction payload');
+    }
+  }
+
+  return validItems;
 };
