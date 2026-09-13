@@ -1,33 +1,37 @@
-export interface RetryOptions {
-  retries: number;
-  delay: number;
-}
-
-/**
- * executes an async function with exponential backoff
- */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = { retries: 3, delay: 1000 }
-): Promise<T> {
-  let lastError: unknown;
-
-  for (let i = 0; i < options.retries; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (i < options.retries - 1) {
-        await new Promise((resolve) => setTimeout(resolve, options.delay * Math.pow(2, i)));
-      }
-    }
+export class CryptoError extends Error {
+  constructor(public message: string, public code: string, public statusCode: number = 500) {
+    super(message);
+    this.name = 'CryptoError';
   }
-
-  throw lastError;
 }
 
-/**
- * generic delay utility for network throttling
- */
-export const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+export const handleChainResponse = <T>(data: T | null, errorMessage: string): T => {
+  if (data === null || data === undefined) {
+    throw new CryptoError(errorMessage, 'DATA_NULL_OR_UNDEFINED', 404);
+  }
+  return data;
+};
+
+export const safeExecute = async <T>(operation: () => Promise<T>): Promise<T> => {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof CryptoError) {
+      throw error;
+    }
+    // Wrap unknown network or parsing errors
+    throw new CryptoError(
+      error instanceof Error ? error.message : 'Unknown execution failure',
+      'EXECUTION_FAILURE',
+      502
+    );
+  }
+};
+
+export const validateWalletAddress = (address: string): boolean => {
+  const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+  if (!addressRegex.test(address)) {
+    return false;
+  }
+  return true;
+};
