@@ -1,45 +1,62 @@
-export class CryptoConfigError extends Error {
-  constructor(public message: string, public code: string) {
-    super(message);
-    this.name = 'CryptoConfigError';
-  }
+import fs from 'fs';
+import path from 'path';
+
+export interface LoggerOptions {
+  logDir: string;
+  maxSizeBytes: number;
+  maxFiles: number;
 }
 
-export interface NetworkConfig {
-  rpcUrl: string;
-  chainId: number;
-}
+export class RotatingLogger {
+  private logDir: string;
+  private maxSizeBytes: number;
+  private maxFiles: number;
+  private currentFilePath: string;
 
-const DEFAULT_RPC = 'https://mainnet.infura.io/v3/';
+  constructor(options: LoggerOptions) {
+    this.logDir = options.logDir;
+    this.maxSizeBytes = options.maxSizeBytes;
+    this.maxFiles = options.maxFiles;
+    this.currentFilePath = path.join(this.logDir, 'crypto-toolkit.log');
 
-/**
- * Validates environment variables for blockchain connectivity
- */
-export function getNetworkConfig(): NetworkConfig {
-  const rpcUrl = process.env.RPC_URL || DEFAULT_RPC;
-  const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID, 10) : 1;
-
-  if (!rpcUrl.startsWith('https://')) {
-    throw new CryptoConfigError('Invalid RPC URL scheme', 'INVALID_SCHEME');
-  }
-
-  if (isNaN(chainId) || chainId <= 0) {
-    throw new CryptoConfigError('Chain ID must be a positive integer', 'INVALID_CHAIN_ID');
-  }
-
-  return { rpcUrl, chainId };
-}
-
-/**
- * Safely loads application configuration with fallbacks
- */
-export function loadSafeConfig(): NetworkConfig {
-  try {
-    return getNetworkConfig();
-  } catch (error) {
-    if (error instanceof CryptoConfigError) {
-      console.error(`[ConfigError] ${error.code}: ${error.message}`);
+    if (!fs.existsSync(this.logDir)) {
+      fs.mkdirSync(this.logDir, { recursive: true });
     }
-    return { rpcUrl: DEFAULT_RPC, chainId: 1 };
+  }
+
+  private rotateLogs(): void {
+    if (!fs.existsSync(this.currentFilePath)) return;
+
+    const stats = fs.statSync(this.currentFilePath);
+    if (stats.size < this.maxSizeBytes) return;
+
+    for (let i = this.maxFiles - 1; i >= 1; i--) {
+      const oldFile = path.join(this.logDir, `crypto-toolkit.${i}.log`);
+      const newFile = path.join(this.logDir, `crypto-toolkit.${i + 1}.log`);
+
+      if (fs.existsSync(oldFile)) {
+        if (i + 1 > this.maxFiles) {
+          fs.unlinkSync(oldFile);
+        } else {
+          fs.renameSync(oldFile, newFile);
+        }
+      }
+    }
+
+    const backupPath = path.join(this.logDir, 'crypto-toolkit.1.log');
+    fs.renameSync(this.currentFilePath, backupPath);
+  }
+
+  public log(level: 'INFO' | 'WARN' | 'ERROR', message: string): void {
+    this.rotateLogs();
+    const timestamp = new Date().toISOString();
+    const entry = `[${timestamp}] [${level}] [crypto-sdk] ${message}\n`;
+    fs.appendFileSync(this.currentFilePath, entry, 'utf-8');
   }
 }
+
+export const defaultLoggerConfig: LoggerOptions = {
+  logDir: './logs',
+  maxSizeBytes: 5 * 1024 * 1024,
+  maxFiles: 5,
+};
