@@ -1,54 +1,33 @@
-import { createHash } from 'crypto';
+import { BigNumber } from 'ethers';
 
 /**
- * Optimized LRU cache for cryptographic hashing operations to prevent redundant CPU cycles.
+ * Formats a crypto balance for UI display
  */
-export class HashCache {
-  private cache: Map<string, string>;
-  private maxEntries: number;
+export const formatUnits = (value: string | bigint, decimals: number = 18): string => {
+  const bn = BigNumber.from(value);
+  const divisor = BigNumber.from(10).pow(decimals);
+  return (bn.div(divisor)).toString() + '.' + (bn.mod(divisor)).toString().padStart(decimals, '0').slice(0, 4);
+};
 
-  constructor(maxEntries = 1000) {
-    this.cache = new Map();
-    this.maxEntries = maxEntries;
-  }
+/**
+ * Normalizes addresses for comparison
+ */
+export const normalizeAddress = (address: string): string => {
+  return address.toLowerCase().trim();
+};
 
-  /**
-   * Computes the SHA-256 hash of a string, returning a cached result if available.
-   */
-  public sha256(data: string): string {
-    const cached = this.cache.get(data);
-    if (cached !== undefined) {
-      // Refresh key position in the Map to maintain LRU order
-      this.cache.delete(data);
-      this.cache.set(data, cached);
-      return cached;
-    }
+/**
+ * Calculates slippage output amount
+ */
+export const calculateSlippage = (amount: string, slippageBasisPoints: number): string => {
+  const val = BigNumber.from(amount);
+  const result = val.mul(10000 - slippageBasisPoints).div(10000);
+  return result.toString();
+};
 
-    const hash = createHash('sha256').update(data).digest('hex');
-
-    if (this.cache.size >= this.maxEntries) {
-      // Evict the least recently used entry (first key in insertion order)
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.cache.delete(oldestKey);
-      }
-    }
-
-    this.cache.set(data, hash);
-    return hash;
-  }
-
-  /**
-   * Clears the current hash cache.
-   */
-  public clear(): void {
-    this.cache.clear();
-  }
-
-  /**
-   * Returns the current size of the cache.
-   */
-  public size(): number {
-    return this.cache.size;
-  }
-}
+/**
+ * Sleep utility for rate limiting
+ */
+export const delay = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
