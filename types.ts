@@ -1,33 +1,45 @@
-export interface TransactionPayload {
-  id: string;
+/**
+ * Core interface for cryptographic exchange interactions
+ */
+export interface CryptoPair {
+  symbol: string;
+  baseAsset: string;
+  quoteAsset: string;
+  precision: number;
+}
+
+/**
+ * Standardized order parameters for exchange execution
+ */
+export interface TradeOrder {
+  pair: string;
+  side: 'buy' | 'sell';
   amount: number;
-  currency: string;
+  price: number;
   timestamp: number;
 }
 
-export const isValidTransaction = (tx: unknown): tx is TransactionPayload => {
-  if (!tx || typeof tx !== 'object') return false;
+/**
+ * API response structure for wallet balance tracking
+ */
+export interface WalletBalance {
+  asset: string;
+  total: string;
+  locked: string;
+  available: string;
+}
 
-  const t = tx as Partial<TransactionPayload>;
-  
-  // Basic schema validation for crypto processing
-  const hasValidAmount = typeof t.amount === 'number' && t.amount > 0;
-  const hasValidId = typeof t.id === 'string' && t.id.length > 0;
-  const hasValidCurrency = typeof t.currency === 'string' && t.currency.length >= 3;
+/**
+ * Status reporting for execution engine loops
+ */
+export type EngineStatus = 'idle' | 'running' | 'error' | 'stopped';
 
-  return !!(hasValidAmount && hasValidId && hasValidCurrency);
-};
-
-export const processLoop = (input: unknown[]): TransactionPayload[] => {
-  const validItems: TransactionPayload[] = [];
-
-  for (const item of input) {
-    if (isValidTransaction(item)) {
-      validItems.push(item);
-    } else {
-      console.warn('Skipping invalid crypto transaction payload');
-    }
-  }
-
-  return validItems;
-};
+/**
+ * Unified result type for trade processing operations
+ */
+export interface TradeResult {
+  success: boolean;
+  orderId?: string;
+  error?: string;
+  latencyMs: number;
+}
