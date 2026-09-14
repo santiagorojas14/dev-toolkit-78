@@ -1,45 +1,33 @@
-/**
- * Core interface for cryptographic exchange interactions
- */
-export interface CryptoPair {
-  symbol: string;
-  baseAsset: string;
-  quoteAsset: string;
-  precision: number;
+export enum CryptoErrorCode {
+  INSUFFICIENT_FUNDS = 'INSUFFICIENT_FUNDS',
+  INVALID_SIGNATURE = 'INVALID_SIGNATURE',
+  NETWORK_TIMEOUT = 'NETWORK_TIMEOUT',
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  UNKNOWN_TRANSACTION_STATE = 'UNKNOWN_TRANSACTION_STATE'
 }
 
-/**
- * Standardized order parameters for exchange execution
- */
-export interface TradeOrder {
-  pair: string;
-  side: 'buy' | 'sell';
-  amount: number;
-  price: number;
-  timestamp: number;
+export interface CryptoError extends Error {
+  code: CryptoErrorCode;
+  context?: Record<string, unknown>;
+  retryable: boolean;
 }
 
-/**
- * API response structure for wallet balance tracking
- */
-export interface WalletBalance {
-  asset: string;
-  total: string;
-  locked: string;
-  available: string;
+export class ToolkitError extends Error implements CryptoError {
+  public readonly code: CryptoErrorCode;
+  public readonly retryable: boolean;
+  public readonly context?: Record<string, unknown>;
+
+  constructor(message: string, code: CryptoErrorCode, context?: Record<string, unknown>) {
+    super(message);
+    this.name = 'ToolkitError';
+    this.code = code;
+    this.context = context;
+    this.retryable = [CryptoErrorCode.NETWORK_TIMEOUT, CryptoErrorCode.RATE_LIMIT_EXCEEDED].includes(code);
+
+    Object.setPrototypeOf(this, ToolkitError.prototype);
+  }
 }
 
-/**
- * Status reporting for execution engine loops
- */
-export type EngineStatus = 'idle' | 'running' | 'error' | 'stopped';
-
-/**
- * Unified result type for trade processing operations
- */
-export interface TradeResult {
-  success: boolean;
-  orderId?: string;
-  error?: string;
-  latencyMs: number;
-}
+export type CryptoResult<T> = 
+  | { success: true; data: T }
+  | { success: false; error: CryptoError };
