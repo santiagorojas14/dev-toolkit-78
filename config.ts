@@ -1,61 +1,29 @@
-export interface CryptoNetworkConfig {
-  rpcUrl: string;
+export interface ChainConfig {
   chainId: number;
-  timeoutMs: number;
-  maxRetries: number;
+  rpcUrl: string;
+  explorer: string;
 }
 
-export interface AppConfig {
-  network: CryptoNetworkConfig;
-  defaultSlippage: number;
-  enableGasOptimization: boolean;
-  apiSecretKey?: string;
-}
-
-const DEFAULT_CONFIG: AppConfig = {
-  network: {
-    rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/demo',
+export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
+  mainnet: {
     chainId: 1,
-    timeoutMs: 10000,
-    maxRetries: 3,
+    rpcUrl: 'https://cloudflare-eth.com',
+    explorer: 'https://etherscan.io'
   },
-  defaultSlippage: 0.5,
-  enableGasOptimization: true,
+  arbitrum: {
+    chainId: 42161,
+    rpcUrl: 'https://arb1.arbitrum.io/rpc',
+    explorer: 'https://arbiscan.io'
+  }
 };
 
-/**
- * Loads and merges user configuration with crypto toolkit defaults.
- */
-export class ConfigLoader {
-  private currentConfig: AppConfig;
+export const DEFAULT_TIMEOUT_MS = 5000;
+export const MAX_RETRY_ATTEMPTS = 3;
 
-  constructor(overrides: Partial<AppConfig> = {}) {
-    this.currentConfig = this.mergeConfig(DEFAULT_CONFIG, overrides);
+export function getProviderConfig(network: string): ChainConfig {
+  const config = SUPPORTED_CHAINS[network];
+  if (!config) {
+    throw new Error(`Unsupported network configuration: ${network}`);
   }
-
-  private mergeConfig(base: AppConfig, overrides: Partial<AppConfig>): AppConfig {
-    return {
-      ...base,
-      ...overrides,
-      network: {
-        ...base.network,
-        ...(overrides.network || {}),
-      },
-    };
-  }
-
-  public getConfig(): Readonly<AppConfig> {
-    return Object.freeze({ ...this.currentConfig });
-  }
-
-  public updateConfig(overrides: Partial<AppConfig>): AppConfig {
-    this.currentConfig = this.mergeConfig(this.currentConfig, overrides);
-    return this.getConfig();
-  }
-
-  public getRpcUrl(): string {
-    return this.currentConfig.network.rpcUrl;
-  }
+  return config;
 }
-
-export const defaultConfigLoader = new ConfigLoader();
