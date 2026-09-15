@@ -1,62 +1,61 @@
-import fs from 'fs';
-import path from 'path';
-
-export interface LoggerOptions {
-  logDir: string;
-  maxSizeBytes: number;
-  maxFiles: number;
+export interface CryptoNetworkConfig {
+  rpcUrl: string;
+  chainId: number;
+  timeoutMs: number;
+  maxRetries: number;
 }
 
-export class RotatingLogger {
-  private logDir: string;
-  private maxSizeBytes: number;
-  private maxFiles: number;
-  private currentFilePath: string;
-
-  constructor(options: LoggerOptions) {
-    this.logDir = options.logDir;
-    this.maxSizeBytes = options.maxSizeBytes;
-    this.maxFiles = options.maxFiles;
-    this.currentFilePath = path.join(this.logDir, 'crypto-toolkit.log');
-
-    if (!fs.existsSync(this.logDir)) {
-      fs.mkdirSync(this.logDir, { recursive: true });
-    }
-  }
-
-  private rotateLogs(): void {
-    if (!fs.existsSync(this.currentFilePath)) return;
-
-    const stats = fs.statSync(this.currentFilePath);
-    if (stats.size < this.maxSizeBytes) return;
-
-    for (let i = this.maxFiles - 1; i >= 1; i--) {
-      const oldFile = path.join(this.logDir, `crypto-toolkit.${i}.log`);
-      const newFile = path.join(this.logDir, `crypto-toolkit.${i + 1}.log`);
-
-      if (fs.existsSync(oldFile)) {
-        if (i + 1 > this.maxFiles) {
-          fs.unlinkSync(oldFile);
-        } else {
-          fs.renameSync(oldFile, newFile);
-        }
-      }
-    }
-
-    const backupPath = path.join(this.logDir, 'crypto-toolkit.1.log');
-    fs.renameSync(this.currentFilePath, backupPath);
-  }
-
-  public log(level: 'INFO' | 'WARN' | 'ERROR', message: string): void {
-    this.rotateLogs();
-    const timestamp = new Date().toISOString();
-    const entry = `[${timestamp}] [${level}] [crypto-sdk] ${message}\n`;
-    fs.appendFileSync(this.currentFilePath, entry, 'utf-8');
-  }
+export interface AppConfig {
+  network: CryptoNetworkConfig;
+  defaultSlippage: number;
+  enableGasOptimization: boolean;
+  apiSecretKey?: string;
 }
 
-export const defaultLoggerConfig: LoggerOptions = {
-  logDir: './logs',
-  maxSizeBytes: 5 * 1024 * 1024,
-  maxFiles: 5,
+const DEFAULT_CONFIG: AppConfig = {
+  network: {
+    rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/demo',
+    chainId: 1,
+    timeoutMs: 10000,
+    maxRetries: 3,
+  },
+  defaultSlippage: 0.5,
+  enableGasOptimization: true,
 };
+
+/**
+ * Loads and merges user configuration with crypto toolkit defaults.
+ */
+export class ConfigLoader {
+  private currentConfig: AppConfig;
+
+  constructor(overrides: Partial<AppConfig> = {}) {
+    this.currentConfig = this.mergeConfig(DEFAULT_CONFIG, overrides);
+  }
+
+  private mergeConfig(base: AppConfig, overrides: Partial<AppConfig>): AppConfig {
+    return {
+      ...base,
+      ...overrides,
+      network: {
+        ...base.network,
+        ...(overrides.network || {}),
+      },
+    };
+  }
+
+  public getConfig(): Readonly<AppConfig> {
+    return Object.freeze({ ...this.currentConfig });
+  }
+
+  public updateConfig(overrides: Partial<AppConfig>): AppConfig {
+    this.currentConfig = this.mergeConfig(this.currentConfig, overrides);
+    return this.getConfig();
+  }
+
+  public getRpcUrl(): string {
+    return this.currentConfig.network.rpcUrl;
+  }
+}
+
+export const defaultConfigLoader = new ConfigLoader();
