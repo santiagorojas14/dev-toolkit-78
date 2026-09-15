@@ -1,33 +1,35 @@
 import { BigNumber } from 'ethers';
 
 /**
- * Formats a crypto balance for UI display
+ * Formats a wei value to a human-readable string
  */
 export const formatUnits = (value: string | bigint, decimals: number = 18): string => {
-  const bn = BigNumber.from(value);
-  const divisor = BigNumber.from(10).pow(decimals);
-  return (bn.div(divisor)).toString() + '.' + (bn.mod(divisor)).toString().padStart(decimals, '0').slice(0, 4);
+  const divisor = BigInt(10) ** BigInt(decimals);
+  const quotient = BigInt(value) / divisor;
+  const remainder = BigInt(value) % divisor;
+  return `${quotient}.${remainder.toString().padStart(decimals, '0').slice(0, 6)}`;
 };
 
 /**
- * Normalizes addresses for comparison
+ * Safely parses string amount to BigNumber for contract interaction
  */
-export const normalizeAddress = (address: string): string => {
-  return address.toLowerCase().trim();
+export const parseAmount = (amount: string, decimals: number = 18): bigint => {
+  const [integer, fraction = ''] = amount.split('.');
+  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+  return BigInt(integer + paddedFraction);
 };
 
 /**
- * Calculates slippage output amount
+ * Calculates percentage impact for trade slippage
  */
-export const calculateSlippage = (amount: string, slippageBasisPoints: number): string => {
-  const val = BigNumber.from(amount);
-  const result = val.mul(10000 - slippageBasisPoints).div(10000);
-  return result.toString();
+export const calculateSlippage = (amount: bigint, slippagePercent: number): bigint => {
+  const factor = BigInt(Math.floor(slippagePercent * 100));
+  return (amount * factor) / 10000n;
 };
 
 /**
- * Sleep utility for rate limiting
+ * Validates address format for EVM chains
  */
-export const delay = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export const isValidAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
