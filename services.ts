@@ -1,41 +1,37 @@
-import { ethers } from 'ethers';
-import { NETWORK_RPC } from './config';
+import { AxiosError } from 'axios';
 
-export interface CryptoProvider {
-  network: string;
-  provider: ethers.JsonRpcProvider;
+/**
+ * Configuration for network retry behavior
+ */
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 1000;
+
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  retries: number = MAX_RETRIES,
+  delay: number = INITIAL_DELAY_MS
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const isRetryable = (error as AxiosError).response?.status !== 404;
+    
+    if (retries > 0 && isRetryable) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return withRetry(operation, retries - 1, delay * 2);
+    }
+    
+    throw error;
+  }
 }
 
 /**
- * Initializes a new provider connection to the blockchain
+ * Example wrapper for crypto market data fetch
  */
-export const getBlockchainProvider = (network: string): CryptoProvider => {
-  const rpc = NETWORK_RPC[network] || 'https://cloudflare-eth.com';
-  return {
-    network,
-    provider: new ethers.JsonRpcProvider(rpc),
-  };
-};
-
-/**
- * Fetches balance with basic validation
- */
-export const fetchBalance = async (
-  provider: ethers.JsonRpcProvider,
-  address: string
-): Promise<string> => {
-  try {
-    const balance = await provider.getBalance(address);
-    return ethers.formatEther(balance);
-  } catch (error) {
-    console.error(`Balance retrieval failed for ${address}:`, error);
-    return '0.0';
-  }
-};
-
-/**
- * Sanitizes gas price data for transaction modules
- */
-export const formatGasPrice = (price: bigint): string => {
-  return ethers.formatUnits(price, 'gwei');
+export const fetchPriceData = async (symbol: string) => {
+  return withRetry(async () => {
+    const response = await fetch(`https://api.crypto-provider.com/v1/price/${symbol}`);
+    if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+    return response.json();
+  });
 };
