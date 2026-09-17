@@ -1,29 +1,43 @@
-export interface ChainConfig {
-  chainId: number;
+export interface CryptoConfig {
+  network: 'mainnet' | 'testnet' | 'devnet';
   rpcUrl: string;
-  explorer: string;
+  chainId: number;
+  gasLimitMultiplier: number;
+  maxRetries: number;
+  requestTimeoutMs: number;
 }
 
-export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
-  mainnet: {
-    chainId: 1,
-    rpcUrl: 'https://cloudflare-eth.com',
-    explorer: 'https://etherscan.io'
-  },
-  arbitrum: {
-    chainId: 42161,
-    rpcUrl: 'https://arb1.arbitrum.io/rpc',
-    explorer: 'https://arbiscan.io'
-  }
+const DEFAULT_CONFIG: CryptoConfig = {
+  network: 'mainnet',
+  rpcUrl: 'https://eth.llamarpc.com',
+  chainId: 1,
+  gasLimitMultiplier: 1.15,
+  maxRetries: 3,
+  requestTimeoutMs: 10000,
 };
 
-export const DEFAULT_TIMEOUT_MS = 5000;
-export const MAX_RETRY_ATTEMPTS = 3;
+/**
+ * Loads and merges custom options with default crypto network configuration.
+ * Sanitizes RPC URL and enforces valid boundaries for numbers.
+ */
+export function loadConfig(options: Partial<CryptoConfig> = {}): CryptoConfig {
+  const merged: CryptoConfig = {
+    ...DEFAULT_CONFIG,
+    ...options,
+  };
 
-export function getProviderConfig(network: string): ChainConfig {
-  const config = SUPPORTED_CHAINS[network];
-  if (!config) {
-    throw new Error(`Unsupported network configuration: ${network}`);
+  // Ensure gas multiplier is at least 1.0
+  if (merged.gasLimitMultiplier < 1.0) {
+    merged.gasLimitMultiplier = 1.0;
   }
-  return config;
+
+  // Ensure retries are non-negative
+  if (merged.maxRetries < 0) {
+    merged.maxRetries = 0;
+  }
+
+  // Trim trailing slashes or whitespace from RPC endpoint
+  merged.rpcUrl = merged.rpcUrl.trim().replace(/\/+$/, '');
+
+  return merged;
 }
