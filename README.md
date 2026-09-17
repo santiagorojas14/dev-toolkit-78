@@ -1,50 +1,55 @@
 # dev-toolkit-78
 
-`dev-toolkit-78` is a high-performance TypeScript library designed to streamline the integration of decentralized financial protocols into modern web applications. It provides a robust abstraction layer for interacting with EVM-compatible chains, simplifying transaction lifecycle management and data normalization.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A lightweight, production-ready TypeScript utility library designed to streamline Web3 interactions and cryptographic data transformations. It provides developers with secure, high-performance tools for address validation, gas estimation, and payload signing across EVM-compatible networks.
 
 ## Features
 
-*   **Multichain Transaction Builder:** Unified interface for constructing, signing, and broadcasting transactions across Ethereum, Polygon, and Arbitrum.
-*   **Real-time Price Feed Integration:** WebSocket-based event listener for sub-millisecond crypto asset pricing using decentralized oracles.
-*   **Type-Safe ABI Interop:** Automatic TypeScript type generation for smart contract ABIs to ensure compile-time safety during contract interactions.
-*   **Gas Estimation Engine:** Intelligent fee prediction algorithms that minimize stuck transactions by analyzing historical network congestion.
+- **EVM Address Sanitizer:** Normalize and safely checksum Ethereum addresses using the Keccak-256 algorithm.
+- **Gas Optimizer:** Real-time fee estimation and gas limit scaling factors for predictable transaction execution under network congestion.
+- **Deterministic Key Derivation:** Safe local keypair generation and offline message signing utilities compliant with BIP-32/44 standards.
 
 ## Installation
 
-Install the toolkit via npm:
+Install the package via npm:
 
 ```bash
-npm install dev-toolkit-78 ethers
+npm install dev-toolkit-78
 ```
 
 Or using yarn:
 
 ```bash
-yarn add dev-toolkit-78 ethers
+yarn add dev-toolkit-78
 ```
 
-## Basic Usage
-
-The following example demonstrates how to initialize the toolkit and fetch a real-time price for a specific asset pair:
+## Quick Start
 
 ```typescript
-import { Toolkit } from 'dev-toolkit-78';
+import { EVMToolkit, GasEstimator } from 'dev-toolkit-78';
 
-const client = new Toolkit({
-  network: 'mainnet',
-  providerUrl: process.env.RPC_URL
-});
+// 1. Validate and checksum a user address
+const rawAddress = "0xfb6916095ca1df60bb79ce92ce3ea74c37c5d359";
+const safeAddress = EVMToolkit.toChecksumAddress(rawAddress);
+console.log(`Checksummed Address: ${safeAddress}`);
 
-async function getAssetPrice() {
-  const price = await client.oracle.getPrice('ETH/USD');
-  console.log(`Current ETH Price: $${price.formatted}`);
+// 2. Estimate transaction gas with a safety buffer
+async function estimateTx() {
+  const estimator = new GasEstimator("https://cloudflare-eth.com");
+  
+  const safeGasLimit = await estimator.getSafeGasLimit({
+    to: safeAddress,
+    value: "100000000000000000", // 0.1 ETH in wei
+    data: "0x"
+  });
+
+  console.log(`Recommended Gas Limit: ${safeGasLimit.toString()} units`);
 }
 
-getAssetPrice().catch(console.error);
+estimateTx();
 ```
 
 ## License
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+Distributed under the MIT License. See `LICENSE` for more information.
