@@ -1,35 +1,47 @@
-import { BigNumber } from 'ethers';
-
 /**
- * Formats a wei value to a human-readable string
+ * Optimized price parsing for high-frequency crypto feeds
+ * Uses a map-based cache to avoid redundant decimal parsing
  */
-export const formatUnits = (value: string | bigint, decimals: number = 18): string => {
-  const divisor = BigInt(10) ** BigInt(decimals);
-  const quotient = BigInt(value) / divisor;
-  const remainder = BigInt(value) % divisor;
-  return `${quotient}.${remainder.toString().padStart(decimals, '0').slice(0, 6)}`;
+
+const cache = new Map<string, number>();
+
+export const parsePrice = (priceString: string): number => {
+  if (cache.has(priceString)) {
+    return cache.get(priceString)!;
+  }
+
+  // Limit cache size to 1000 entries for memory management
+  if (cache.size >= 1000) {
+    const firstKey = cache.keys().next().value;
+    cache.delete(firstKey);
+  }
+
+  const parsed = parseFloat(priceString);
+  cache.set(priceString, parsed);
+  return parsed;
 };
 
 /**
- * Safely parses string amount to BigNumber for contract interaction
+ * Batch update processor to reduce event loop blocking
  */
-export const parseAmount = (amount: string, decimals: number = 18): bigint => {
-  const [integer, fraction = ''] = amount.split('.');
-  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
-  return BigInt(integer + paddedFraction);
+export const processBatch = <T>(items: T[], callback: (item: T) => void): void => {
+  const CHUNK_SIZE = 50;
+  let index = 0;
+
+  const run = () => {
+    const end = Math.min(index + CHUNK_SIZE, items.length);
+    for (; index < end; index++) {
+      callback(items[index]);
+    }
+
+    if (index < items.length) {
+      setTimeout(run, 0);
+    }
+  };
+
+  run();
 };
 
-/**
- * Calculates percentage impact for trade slippage
- */
-export const calculateSlippage = (amount: bigint, slippagePercent: number): bigint => {
-  const factor = BigInt(Math.floor(slippagePercent * 100));
-  return (amount * factor) / 10000n;
-};
-
-/**
- * Validates address format for EVM chains
- */
-export const isValidAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
+export const clearCache = (): void => {
+  cache.clear();
 };
