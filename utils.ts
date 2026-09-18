@@ -1,37 +1,47 @@
-export interface TransactionPayload {
+/**
+ * Crypto utility functions for dev-toolkit-78
+ */
+
+export interface Transaction {
   id: string;
-  amount: number;
-  address: string;
+  amount: bigint;
+  recipient: string;
+  timestamp: number;
 }
 
 /**
- * Validates crypto transaction fields before main processing
+ * Formats a BigInt crypto amount into a readable string
  */
-export function validateTransaction(data: any): data is TransactionPayload {
-  if (typeof data !== 'object' || data === null) return false;
+export const formatUnits = (value: bigint, decimals: number = 18): string => {
+  const divisor = BigInt(10) ** BigInt(decimals);
+  const integerPart = value / divisor;
+  const fractionalPart = value % divisor;
 
-  const { id, amount, address } = data;
-
-  const isIdValid = typeof id === 'string' && id.length > 0;
-  const isAmountValid = typeof amount === 'number' && amount > 0;
-  const isAddressValid = typeof address === 'string' && /^0x[a-fA-F0-9]{40}$/.test(address);
-
-  return isIdValid && isAmountValid && isAddressValid;
-}
+  return `${integerPart}.${fractionalPart.toString().padStart(decimals, '0')}`;
+};
 
 /**
- * Processing loop with input validation
+ * Validates a basic hexadecimal address string
  */
-export function processBatch(inputs: unknown[]): TransactionPayload[] {
-  const validated: TransactionPayload[] = [];
+export const isValidAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
 
-  for (const input of inputs) {
-    if (validateTransaction(input)) {
-      validated.push(input);
-    } else {
-      console.error('Invalid crypto transaction data skipped:', input);
-    }
-  }
+/**
+ * Generates a mock transaction object for testing purposes
+ */
+export const createMockTx = (recipient: string, amount: bigint): Transaction => {
+  return {
+    id: Math.random().toString(36).substring(2),
+    amount,
+    recipient,
+    timestamp: Date.now(),
+  };
+};
 
-  return validated;
-}
+/**
+ * Safely calculates fee based on a percentage (basis points)
+ */
+export const calculateFee = (amount: bigint, basisPoints: number): bigint => {
+  return (amount * BigInt(basisPoints)) / BigInt(10000);
+};
