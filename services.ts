@@ -1,73 +1,50 @@
-/**
- * Service module for fetching crypto gas estimations and network telemetry.
- */
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
-export interface GasEstimate {
-  slow: number;
-  standard: number;
-  fast: number;
-  baseFee: number;
-  timestamp: number;
+export interface ServiceConfig {
+  secretKey: string;
+  algorithm: string;
 }
 
-export interface NetworkStatus {
-  chainId: number;
-  blockNumber: number;
-  isSyncing: boolean;
-}
+export class CryptoService {
+  private readonly secretKey: Buffer;
+  private readonly algorithm: string;
 
-/**
- * Service for interacting with blockchain telemetry and RPC endpoints.
- */
-export class CryptoNetworkService {
-  private readonly rpcUrl: string;
-
-  /**
-   * Initializes the network service with a specific RPC endpoint URL.
-   * @param rpcUrl - The HTTP RPC endpoint for the target network.
-   */
-  constructor(rpcUrl: string) {
-    this.rpcUrl = rpcUrl;
+  constructor(config: ServiceConfig) {
+    if (!config.secretKey) {
+      throw new Error('Secret key is required for CryptoService initialization');
+    }
+    this.secretKey = Buffer.from(config.secretKey, 'utf-8');
+    this.algorithm = config.algorithm || 'sha256';
   }
 
   /**
-   * Fetches current gas price estimates in Gwei.
-   * @returns Promise resolving to gas price estimates across speed tiers.
+   * Generates a secure HMAC signature for the given payload.
    */
-  async getGasEstimates(): Promise<GasEstimate> {
-    const response = await fetch(this.rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'eth_gasPrice',
-        params: [],
-        id: Date.now(),
-      }),
-    });
+  public generateSignature(payload: string): string {
+    return createHmac(this.algorithm, this.secretKey)
+      .update(payload)
+      .digest('hex');
+  }
 
-    if (!response.ok) {
-      throw new Error(`RPC node error: ${response.statusText}`);
+  /**
+   * Verifies a signature using timing-safe comparison to prevent side-channel attacks.
+   */
+  public verifySignature(payload: string, signature: string): boolean {
+    const expected = this.generateSignature(payload);
+    const expectedBuffer = Buffer.from(expected, 'hex');
+    const signatureBuffer = Buffer.from(signature, 'hex');
+
+    if (expectedBuffer.length !== signatureBuffer.length) {
+      return false;
     }
 
-    const data = (await response.json()) as { result?: string };
-    const baseGwei = data.result ? parseInt(data.result, 16) / 1e9 : 20;
-
-    return {
-      slow: Math.round(baseGwei * 0.9 * 100) / 100,
-      standard: Math.round(baseGwei * 100) / 100,
-      fast: Math.round(baseGwei * 1.25 * 100) / 100,
-      baseFee: Math.round(baseGwei * 0.8 * 100) / 100,
-      timestamp: Date.now(),
-    };
+    return timingSafeEqual(expectedBuffer, signatureBuffer);
   }
 
   /**
-   * Validates whether a provided string matches Ethereum address formatting.
-   * @param address - Hexadecimal Ethereum wallet address.
-   * @returns True if address format is valid, false otherwise.
+   * Generates a cryptographically secure random token.
    */
-  isValidAddress(address: string): boolean {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  public generateRandomToken(bytes = 32): string {
+    return randomBytes(bytes).toString('hex');
   }
 }
