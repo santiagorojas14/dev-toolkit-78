@@ -1,50 +1,45 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
-
-export interface ServiceConfig {
-  secretKey: string;
-  algorithm: string;
+interface Transaction {
+  id: string;
+  amount: number;
+  asset: 'BTC' | 'ETH' | 'SOL';
+  timestamp: number;
 }
 
-export class CryptoService {
-  private readonly secretKey: Buffer;
-  private readonly algorithm: string;
+/**
+ * Fetches historical price data for specific crypto assets
+ */
+export const getAssetPrice = async (asset: string): Promise<number> => {
+  const response = await fetch(`https://api.dev-toolkit-78.io/v1/price/${asset}`);
+  const data: { price: number } = await response.json();
+  return data.price;
+};
 
-  constructor(config: ServiceConfig) {
-    if (!config.secretKey) {
-      throw new Error('Secret key is required for CryptoService initialization');
-    }
-    this.secretKey = Buffer.from(config.secretKey, 'utf-8');
-    this.algorithm = config.algorithm || 'sha256';
+/**
+ * Processes a batch of crypto transactions for the ledger
+ */
+export const processTransactions = async (txs: Transaction[]): Promise<boolean> => {
+  try {
+    const results = await Promise.all(txs.map(async (tx) => {
+      const price = await getAssetPrice(tx.asset);
+      return { ...tx, valuation: tx.amount * price };
+    }));
+
+    console.log(`Successfully processed ${results.length} transactions`);
+    return true;
+  } catch (error) {
+    console.error('Transaction processing failed:', error);
+    return false;
   }
+};
 
-  /**
-   * Generates a secure HMAC signature for the given payload.
-   */
-  public generateSignature(payload: string): string {
-    return createHmac(this.algorithm, this.secretKey)
-      .update(payload)
-      .digest('hex');
-  }
-
-  /**
-   * Verifies a signature using timing-safe comparison to prevent side-channel attacks.
-   */
-  public verifySignature(payload: string, signature: string): boolean {
-    const expected = this.generateSignature(payload);
-    const expectedBuffer = Buffer.from(expected, 'hex');
-    const signatureBuffer = Buffer.from(signature, 'hex');
-
-    if (expectedBuffer.length !== signatureBuffer.length) {
-      return false;
-    }
-
-    return timingSafeEqual(expectedBuffer, signatureBuffer);
-  }
-
-  /**
-   * Generates a cryptographically secure random token.
-   */
-  public generateRandomToken(bytes = 32): string {
-    return randomBytes(bytes).toString('hex');
-  }
-}
+/**
+ * Formats a transaction payload for internal network submission
+ */
+export const formatPayload = (tx: Transaction): string => {
+  return JSON.stringify({
+    txid: tx.id,
+    val: tx.amount,
+    token: tx.asset.toLowerCase(),
+    ts: tx.timestamp
+  });
+};
