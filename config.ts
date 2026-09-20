@@ -1,37 +1,46 @@
 /**
- * Configuration constants for dev-toolkit-78 crypto utilities
+ * Configuration constants for dev-toolkit-78 crypto modules
  */
 
 export interface NetworkConfig {
-  chainId: number;
-  rpcUrl: string;
-  retryAttempts: number;
-  timeoutMs: number;
+  readonly chainId: number;
+  readonly rpcUrl: string;
+  readonly timeoutMs: number;
 }
 
-export const SUPPORTED_NETWORKS: Record<string, NetworkConfig> = {
-  mainnet: {
-    chainId: 1,
-    rpcUrl: 'https://cloudflare-eth.com',
-    retryAttempts: 3,
-    timeoutMs: 5000,
+export interface CryptoConfig {
+  readonly networks: Record<string, NetworkConfig>;
+  readonly defaultGasLimit: bigint;
+}
+
+/**
+ * Core configuration schema for blockchain connectivity
+ */
+export const config: CryptoConfig = {
+  networks: {
+    mainnet: {
+      chainId: 1,
+      rpcUrl: 'https://cloudflare-eth.com',
+      timeoutMs: 30000,
+    },
+    sepolia: {
+      chainId: 11155111,
+      rpcUrl: 'https://rpc.sepolia.org',
+      timeoutMs: 15000,
+    }
   },
-  goerli: {
-    chainId: 5,
-    rpcUrl: 'https://goerli.infura.io/v3/public',
-    retryAttempts: 5,
-    timeoutMs: 10000,
-  },
+  defaultGasLimit: 21000n,
 };
 
-export const DEFAULT_GAS_LIMIT: bigint = BigInt(21000);
-
-export const VALID_TOKEN_STANDARDS: string[] = ['ERC-20', 'ERC-721', 'ERC-1155'];
-
-export const getNetworkConfig = (networkName: string): NetworkConfig => {
-  const config = SUPPORTED_NETWORKS[networkName];
-  if (!config) {
-    throw new Error(`Unsupported network: ${networkName}`);
+/**
+ * Validates network connectivity parameters
+ * @param networkKey Unique identifier for the blockchain network
+ * @returns NetworkConfig configuration object
+ */
+export const getNetworkConfig = (networkKey: string): NetworkConfig => {
+  const net = config.networks[networkKey];
+  if (!net) {
+    throw new Error(`Unsupported network: ${networkKey}`);
   }
-  return config;
+  return net;
 };
