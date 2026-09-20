@@ -1,33 +1,48 @@
-export enum CryptoErrorCode {
-  INSUFFICIENT_FUNDS = 'INSUFFICIENT_FUNDS',
-  INVALID_SIGNATURE = 'INVALID_SIGNATURE',
-  NETWORK_TIMEOUT = 'NETWORK_TIMEOUT',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
-  UNKNOWN_TRANSACTION_STATE = 'UNKNOWN_TRANSACTION_STATE'
+/**
+ * Core interface for cryptocurrency asset identification
+ */
+export interface CryptoAsset {
+  symbol: string;
+  name: string;
+  decimals: number;
+  contractAddress?: string;
 }
 
-export interface CryptoError extends Error {
-  code: CryptoErrorCode;
-  context?: Record<string, unknown>;
-  retryable: boolean;
+/**
+ * Price data structure for exchange tickers
+ */
+export interface PriceUpdate {
+  pair: string;
+  price: number;
+  timestamp: number;
+  source: 'binance' | 'kraken' | 'coinbase';
 }
 
-export class ToolkitError extends Error implements CryptoError {
-  public readonly code: CryptoErrorCode;
-  public readonly retryable: boolean;
-  public readonly context?: Record<string, unknown>;
-
-  constructor(message: string, code: CryptoErrorCode, context?: Record<string, unknown>) {
-    super(message);
-    this.name = 'ToolkitError';
-    this.code = code;
-    this.context = context;
-    this.retryable = [CryptoErrorCode.NETWORK_TIMEOUT, CryptoErrorCode.RATE_LIMIT_EXCEEDED].includes(code);
-
-    Object.setPrototypeOf(this, ToolkitError.prototype);
-  }
+/**
+ * Transaction status enumeration for network operations
+ */
+export enum TxStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  FAILED = 'FAILED'
 }
 
-export type CryptoResult<T> = 
-  | { success: true; data: T }
-  | { success: false; error: CryptoError };
+/**
+ * Represents a standard wallet interaction response
+ */
+export interface WalletResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  status: TxStatus;
+}
+
+/**
+ * Configuration settings for network providers
+ */
+export type NetworkConfig = {
+  rpcUrl: string;
+  chainId: number;
+  timeoutMs: number;
+  retryAttempts: number;
+};
