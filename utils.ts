@@ -1,45 +1,51 @@
 /**
- * Optimized LRU cache for expensive cryptographic calculations
- * like public key derivation or signature verification results.
+ * Utility functions for common cryptocurrency and blockchain operations.
  */
-export class CryptoLRUCache<T> {
-  private cache = new Map<string, T>();
-  private readonly maxEntries: number;
 
-  constructor(maxEntries = 1000) {
-    this.maxEntries = maxEntries;
+/**
+ * Formats a raw token amount (in the smallest unit, like Wei or Satoshis) 
+ * into a human-readable decimal string representation.
+ * 
+ * @param amount - The raw amount as a bigint, string, or number.
+ * @param decimals - The number of decimals the token uses (e.g., 18 for ETH, 8 for BTC).
+ * @returns The formatted decimal string.
+ */
+export function formatCryptoAmount(
+  amount: bigint | string | number,
+  decimals: number
+): string {
+  const bigAmount = BigInt(amount);
+  const divisor = 10n ** BigInt(decimals);
+  
+  const integerPart = bigAmount / divisor;
+  const fractionalPart = bigAmount % divisor;
+  
+  if (fractionalPart === 0n) {
+    return integerPart.toString();
   }
+  
+  // Pad fractional part with leading zeros if necessary
+  let fractionalStr = fractionalPart.toString().padStart(decimals, '0');
+  
+  // Trim trailing zeros from fractional part for cleaner representation
+  fractionalStr = fractionalStr.replace(/0+$/, '');
+  
+  return `${integerPart}.${fractionalStr}`;
+}
 
-  public get(key: string): T | undefined {
-    const hasKey = this.cache.has(key);
-    if (hasKey) {
-      const val = this.cache.get(key)!;
-      // Refresh key priority in map
-      this.cache.delete(key);
-      this.cache.set(key, val);
-      return val;
-    }
-    return undefined;
+/**
+ * Validates whether a given string is a standard Ethereum address format.
+ * Supports both standard 40-character hex addresses (with or without '0x' prefix).
+ * 
+ * @param address - The string to validate.
+ * @returns True if the string matches the Ethereum address format, false otherwise.
+ */
+export function isValidEthAddress(address: string): boolean {
+  if (typeof address !== 'string') {
+    return false;
   }
-
-  public set(key: string, value: T): void {
-    if (this.cache.has(key)) {
-      this.cache.delete(key);
-    } else if (this.cache.size >= this.maxEntries) {
-      // Map maintains insertion order, first element is the oldest
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.cache.delete(oldestKey);
-      }
-    }
-    this.cache.set(key, value);
-  }
-
-  public clear(): void {
-    this.cache.clear();
-  }
-
-  public get size(): number {
-    return this.cache.size;
-  }
+  
+  // Check if it matches the 40 hex character pattern, optional '0x' prefix
+  const ethAddressRegex = /^(0x)?[0-9a-fA-F]{40}$/;
+  return ethAddressRegex.test(address);
 }
