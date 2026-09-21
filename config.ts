@@ -1,46 +1,48 @@
 /**
- * Configuration constants for dev-toolkit-78 crypto modules
+ * Configuration constants for dev-toolkit-78 crypto service.
+ * Defines chain IDs, RPC endpoints, and rate limits.
  */
 
 export interface NetworkConfig {
-  readonly chainId: number;
-  readonly rpcUrl: string;
-  readonly timeoutMs: number;
+  chainId: number;
+  rpcUrl: string;
+  maxRetries: number;
+  timeoutMs: number;
 }
 
-export interface CryptoConfig {
-  readonly networks: Record<string, NetworkConfig>;
-  readonly defaultGasLimit: bigint;
-}
-
-/**
- * Core configuration schema for blockchain connectivity
- */
-export const config: CryptoConfig = {
-  networks: {
-    mainnet: {
-      chainId: 1,
-      rpcUrl: 'https://cloudflare-eth.com',
-      timeoutMs: 30000,
-    },
-    sepolia: {
-      chainId: 11155111,
-      rpcUrl: 'https://rpc.sepolia.org',
-      timeoutMs: 15000,
-    }
+export const NETWORKS: Record<string, NetworkConfig> = {
+  mainnet: {
+    chainId: 1,
+    rpcUrl: 'https://mainnet.infura.io/v3/default',
+    maxRetries: 3,
+    timeoutMs: 5000,
   },
-  defaultGasLimit: 21000n,
+  sepolia: {
+    chainId: 11155111,
+    rpcUrl: 'https://sepolia.infura.io/v3/default',
+    maxRetries: 5,
+    timeoutMs: 10000,
+  },
 };
 
 /**
- * Validates network connectivity parameters
- * @param networkKey Unique identifier for the blockchain network
- * @returns NetworkConfig configuration object
+ * Environment settings for the dev-toolkit
  */
-export const getNetworkConfig = (networkKey: string): NetworkConfig => {
-  const net = config.networks[networkKey];
-  if (!net) {
-    throw new Error(`Unsupported network: ${networkKey}`);
+export const APP_CONFIG = {
+  version: '0.7.8',
+  isProduction: process.env.NODE_ENV === 'production',
+  defaultGasLimit: 21000n,
+} as const;
+
+export type NetworkKey = keyof typeof NETWORKS;
+
+/**
+ * Helper to retrieve network config by key
+ */
+export function getNetworkConfig(key: NetworkKey): NetworkConfig {
+  const config = NETWORKS[key];
+  if (!config) {
+    throw new Error(`Configuration for network ${key} not found`);
   }
-  return net;
-};
+  return config;
+}
