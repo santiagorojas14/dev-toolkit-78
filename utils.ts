@@ -1,57 +1,43 @@
-export interface TransactionInput {
-  fromAddress: string;
-  toAddress: string;
-  amount: string;
-  signature: string;
-}
-
-export interface ValidationResult {
-  isValid: boolean;
-  error?: string;
+export class CryptoError extends Error {
+  constructor(public message: string, public code: string, public retryable: boolean = false) {
+    super(message);
+    this.name = 'CryptoError';
+  }
 }
 
 /**
- * Validates basic crypto transaction inputs.
- * Checks hex address formats, positive amount values, and signature length.
+ * Safely handles transaction parsing with explicit error categorization
  */
-export function validateTransaction(tx: TransactionInput): ValidationResult {
-  const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-  const signatureRegex = /^0x[a-fA-F0-9]{130}$/;
-
-  if (!addressRegex.test(tx.fromAddress)) {
-    return { isValid: false, error: "invalid sender address format" };
-  }
-
-  if (!addressRegex.test(tx.toAddress)) {
-    return { isValid: false, error: "invalid recipient address format" };
-  }
-
-  if (tx.fromAddress.toLowerCase() === tx.toAddress.toLowerCase()) {
-    return { isValid: false, error: "sender and recipient must be different" };
+export function parseTransaction(data: unknown): any {
+  if (data === null || typeof data !== 'object') {
+    throw new CryptoError('Invalid transaction format', 'ERR_INVALID_DATA', false);
   }
 
   try {
-    const amountBigInt = BigInt(tx.amount);
-    if (amountBigInt <= 0n) {
-      return { isValid: false, error: "amount must be greater than zero" };
+    const tx = JSON.parse(JSON.stringify(data));
+    if (!tx.hash || !tx.nonce) {
+      throw new CryptoError('Missing required fields', 'ERR_MISSING_FIELDS', false);
     }
-  } catch {
-    return { isValid: false, error: "amount must be a valid numeric string" };
+    return tx;
+  } catch (err) {
+    if (err instanceof CryptoError) throw err;
+    throw new CryptoError('Malformed transaction structure', 'ERR_MALFORMED', false);
   }
-
-  if (!signatureRegex.test(tx.signature)) {
-    return { isValid: false, error: "invalid cryptographic signature format" };
-  }
-
-  return { isValid: true };
 }
 
 /**
- * Filters a batch of transactions to ensure only valid inputs enter the processing loop.
+ * Wrapper for network calls to ensure connectivity issues are catchable
  */
-export function validateAndFilterBatch(transactions: TransactionInput[]): TransactionInput[] {
-  return transactions.filter((tx) => {
-    const validation = validateTransaction(tx);
-    return validation.isValid;
-  });
+export async function safeFetch<T>(url: string): Promise<T> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const retryable = response.status >= 500;
+      throw new CryptoError(`Request failed with status ${response.status}`, 'ERR_NETWORK', retryable);
+    }
+    return await response.json();
+  } catch (err) {
+    if (err instanceof CryptoError) throw err;
+    throw new CryptoError('Unexpected transport failure', 'ERR_TRANSPORT', true);
+  }
 }
