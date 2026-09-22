@@ -1,77 +1,57 @@
-export interface RawTransactionInput {
-  recipient: string;
-  amount: string | number;
-  token: string;
+export interface TransactionInput {
+  fromAddress: string;
+  toAddress: string;
+  amount: string;
+  signature: string;
 }
 
-export interface ValidatedTransaction {
-  recipient: string;
-  amount: bigint;
-  token: string;
+export interface ValidationResult {
+  isValid: boolean;
+  error?: string;
 }
-
-export interface BatchProcessingResult {
-  successful: ValidatedTransaction[];
-  failed: { input: RawTransactionInput; error: string }[];
-}
-
-const SUPPORTED_TOKENS = new Set(['BTC', 'ETH', 'SOL', 'USDC']);
-const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
 /**
- * Validates a single raw crypto transaction input.
+ * Validates basic crypto transaction inputs.
+ * Checks hex address formats, positive amount values, and signature length.
  */
-export function validateTransactionInput(input: RawTransactionInput): ValidatedTransaction {
-  if (!input.recipient || typeof input.recipient !== 'string') {
-    throw new Error('Invalid or missing recipient address');
+export function validateTransaction(tx: TransactionInput): ValidationResult {
+  const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+  const signatureRegex = /^0x[a-fA-F0-9]{130}$/;
+
+  if (!addressRegex.test(tx.fromAddress)) {
+    return { isValid: false, error: "invalid sender address format" };
   }
 
-  if (!ETH_ADDRESS_REGEX.test(input.recipient)) {
-    throw new Error('Recipient must be a valid EVM hex address');
+  if (!addressRegex.test(tx.toAddress)) {
+    return { isValid: false, error: "invalid recipient address format" };
   }
 
-  if (input.amount === undefined || input.amount === null || input.amount === '') {
-    throw new Error('Transaction amount is required');
+  if (tx.fromAddress.toLowerCase() === tx.toAddress.toLowerCase()) {
+    return { isValid: false, error: "sender and recipient must be different" };
   }
 
-  let parsedAmount: bigint;
   try {
-    parsedAmount = BigInt(input.amount);
+    const amountBigInt = BigInt(tx.amount);
+    if (amountBigInt <= 0n) {
+      return { isValid: false, error: "amount must be greater than zero" };
+    }
   } catch {
-    throw new Error('Amount must be a valid numeric value');
+    return { isValid: false, error: "amount must be a valid numeric string" };
   }
 
-  if (parsedAmount <= 0n) {
-    throw new Error('Amount must be greater than zero');
+  if (!signatureRegex.test(tx.signature)) {
+    return { isValid: false, error: "invalid cryptographic signature format" };
   }
 
-  if (!input.token || !SUPPORTED_TOKENS.has(input.token.toUpperCase())) {
-    throw new Error(`Unsupported token symbol: ${input.token}`);
-  }
-
-  return {
-    recipient: input.recipient.toLowerCase(),
-    amount: parsedAmount,
-    token: input.token.toUpperCase(),
-  };
+  return { isValid: true };
 }
 
 /**
- * Processes a batch of raw transaction inputs with strict validation in the main loop.
+ * Filters a batch of transactions to ensure only valid inputs enter the processing loop.
  */
-export function processBatchLoop(inputs: RawTransactionInput[]): BatchProcessingResult {
-  const successful: ValidatedTransaction[] = [];
-  const failed: { input: RawTransactionInput; error: string }[] = [];
-
-  for (const input of inputs) {
-    try {
-      const validated = validateTransactionInput(input);
-      successful.push(validated);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown validation error';
-      failed.push({ input, error: message });
-    }
-  }
-
-  return { successful, failed };
+export function validateAndFilterBatch(transactions: TransactionInput[]): TransactionInput[] {
+  return transactions.filter((tx) => {
+    const validation = validateTransaction(tx);
+    return validation.isValid;
+  });
 }
