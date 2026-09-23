@@ -1,48 +1,43 @@
 /**
  * Configuration constants for dev-toolkit-78 crypto service.
- * Defines chain IDs, RPC endpoints, and rate limits.
+ * Defines chain IDs and standard network endpoints.
  */
 
 export interface NetworkConfig {
-  chainId: number;
-  rpcUrl: string;
-  maxRetries: number;
-  timeoutMs: number;
+  readonly chainId: number;
+  readonly rpcUrl: string;
+  readonly explorer: string;
+  readonly timeoutMs: number;
 }
 
-export const NETWORKS: Record<string, NetworkConfig> = {
+export const SUPPORTED_CHAINS: Record<string, NetworkConfig> = {
   mainnet: {
     chainId: 1,
-    rpcUrl: 'https://mainnet.infura.io/v3/default',
-    maxRetries: 3,
-    timeoutMs: 5000,
+    rpcUrl: 'https://eth-mainnet.public.blastapi.io',
+    explorer: 'https://etherscan.io',
+    timeoutMs: 30000,
   },
   sepolia: {
     chainId: 11155111,
-    rpcUrl: 'https://sepolia.infura.io/v3/default',
-    maxRetries: 5,
-    timeoutMs: 10000,
+    rpcUrl: 'https://rpc.sepolia.org',
+    explorer: 'https://sepolia.etherscan.io',
+    timeoutMs: 15000,
   },
 };
 
 /**
- * Environment settings for the dev-toolkit
+ * Gas settings for transaction estimation.
  */
-export const APP_CONFIG = {
-  version: '0.7.8',
-  isProduction: process.env.NODE_ENV === 'production',
-  defaultGasLimit: 21000n,
-} as const;
+export const GAS_DEFAULTS = {
+  bufferMultiplier: 1.2,
+  maxPriorityFeePerGas: BigInt(2000000000),
+  defaultGasLimit: BigInt(21000),
+};
 
-export type NetworkKey = keyof typeof NETWORKS;
-
-/**
- * Helper to retrieve network config by key
- */
-export function getNetworkConfig(key: NetworkKey): NetworkConfig {
-  const config = NETWORKS[key];
+export const getChainConfig = (network: string): NetworkConfig => {
+  const config = SUPPORTED_CHAINS[network];
   if (!config) {
-    throw new Error(`Configuration for network ${key} not found`);
+    throw new Error(`Unsupported network configuration: ${network}`);
   }
   return config;
-}
+};
