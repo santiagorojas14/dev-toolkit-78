@@ -1,43 +1,39 @@
-/**
- * Configuration constants for dev-toolkit-78 crypto service.
- * Defines chain IDs and standard network endpoints.
- */
-
-export interface NetworkConfig {
-  readonly chainId: number;
-  readonly rpcUrl: string;
-  readonly explorer: string;
-  readonly timeoutMs: number;
+export interface CryptoConfig {
+  network: 'mainnet' | 'testnet' | 'localhost';
+  rpcUrl: string;
+  chainId: number;
+  defaultGasLimit: bigint;
+  requestTimeoutMs: number;
+  retryAttempts: number;
+  enableWebSocket: boolean;
 }
 
-export const SUPPORTED_CHAINS: Record<string, NetworkConfig> = {
-  mainnet: {
-    chainId: 1,
-    rpcUrl: 'https://eth-mainnet.public.blastapi.io',
-    explorer: 'https://etherscan.io',
-    timeoutMs: 30000,
-  },
-  sepolia: {
-    chainId: 11155111,
-    rpcUrl: 'https://rpc.sepolia.org',
-    explorer: 'https://sepolia.etherscan.io',
-    timeoutMs: 15000,
-  },
+const DEFAULT_CONFIG: CryptoConfig = {
+  network: 'mainnet',
+  rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/demo',
+  chainId: 1,
+  defaultGasLimit: 21000n,
+  requestTimeoutMs: 10000,
+  retryAttempts: 3,
+  enableWebSocket: false,
 };
 
 /**
- * Gas settings for transaction estimation.
+ * Loads and merges crypto toolkit configuration with environment variables and custom overrides.
  */
-export const GAS_DEFAULTS = {
-  bufferMultiplier: 1.2,
-  maxPriorityFeePerGas: BigInt(2000000000),
-  defaultGasLimit: BigInt(21000),
-};
+export function loadConfig(overrides: Partial<CryptoConfig> = {}): CryptoConfig {
+  const envNetwork = process.env.CRYPTO_NETWORK as CryptoConfig['network'] | undefined;
+  const envRpcUrl = process.env.CRYPTO_RPC_URL;
+  const envChainId = process.env.CRYPTO_CHAIN_ID ? parseInt(process.env.CRYPTO_CHAIN_ID, 10) : undefined;
 
-export const getChainConfig = (network: string): NetworkConfig => {
-  const config = SUPPORTED_CHAINS[network];
-  if (!config) {
-    throw new Error(`Unsupported network configuration: ${network}`);
-  }
-  return config;
-};
+  const envConfig: Partial<CryptoConfig> = {};
+  if (envNetwork) envConfig.network = envNetwork;
+  if (envRpcUrl) envConfig.rpcUrl = envRpcUrl;
+  if (envChainId && !isNaN(envChainId)) envConfig.chainId = envChainId;
+
+  return {
+    ...DEFAULT_CONFIG,
+    ...envConfig,
+    ...overrides,
+  };
+}
