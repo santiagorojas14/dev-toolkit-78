@@ -1,50 +1,48 @@
-import { createHash } from "crypto";
+import { BigNumber } from 'ethers';
 
 /**
- * Normalizes a Hex string by ensuring a standard '0x' prefix and lowercase format.
+ * Formats a wei value to a human-readable string
  */
-export function normalizeHexString(hex: string): string {
-  const cleaned = hex.trim().replace(/^0x/i, "");
-  return `0x${cleaned.toLowerCase()}`;
-}
+export const formatUnits = (value: string | bigint, decimals: number = 18): string => {
+  const divisor = BigInt(10) ** BigInt(decimals);
+  const quotient = BigInt(value) / divisor;
+  const remainder = BigInt(value) % divisor;
+  return `${quotient}.${remainder.toString().padStart(decimals, '0')}`;
+};
 
 /**
- * Validates whether a given string is a valid EVM-compatible address.
+ * Validates a standard EVM address format
  */
-export function isValidEvmAddress(address: string): boolean {
-  if (!address || typeof address !== "string") {
-    return false;
+export const isValidAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
+/**
+ * Calculates slippage-adjusted price for trade execution
+ */
+export const calculateSlippage = (
+  price: number, 
+  slippagePercent: number, 
+  isBuy: boolean
+): number => {
+  const factor = 1 + (isBuy ? slippagePercent / 100 : -slippagePercent / 100);
+  return price * factor;
+};
+
+/**
+ * Delays execution for rate limiting purposes
+ */
+export const sleep = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+/**
+ * Sanitizes numeric input to handle string overflows
+ */
+export const parseSafeBigInt = (input: string | number): bigint => {
+  try {
+    return BigInt(input);
+  } catch {
+    return 0n;
   }
-  return /^0x[a-fA-F0-9]{40}$/.test(address.trim());
-}
-
-/**
- * Formats raw wei value into human-readable Ether representation.
- */
-export function formatWeiToEther(wei: bigint | string): string {
-  const weiBigInt = BigInt(wei);
-  const weiString = weiBigInt.toString().padStart(19, "0");
-  const integerPart = weiString.slice(0, -18) || "0";
-  const fractionalPart = weiString.slice(-18).replace(/0+$/, "");
-  
-  return fractionalPart ? `${integerPart}.${fractionalPart}` : integerPart;
-}
-
-/**
- * Generates a deterministic SHA-256 hash formatted with '0x' prefix.
- */
-export function hashPayload(payload: string): string {
-  const hash = createHash("sha256").update(payload).digest("hex");
-  return `0x${hash}`;
-}
-
-/**
- * Truncates a crypto wallet address for safe display in UI elements.
- */
-export function truncateAddress(address: string, startChars = 6, endChars = 4): string {
-  const normalized = normalizeHexString(address);
-  if (normalized.length <= startChars + endChars) {
-    return normalized;
-  }
-  return `${normalized.slice(0, startChars)}...${normalized.slice(-endChars)}`;
-}
+};
