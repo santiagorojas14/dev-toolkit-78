@@ -1,56 +1,77 @@
 export interface RetryOptions {
-  retries: number;
-  minDelayMs: number;
-  maxDelayMs: number;
-  backoffFactor: number;
-  retryableErrors?: RegExp[];
+  maxRetries?: number;
+  initialDelayMs?: number;
+  backoffFactor?: number;
 }
 
-const DEFAULT_OPTIONS: RetryOptions = {
-  retries: 3,
-  minDelayMs: 1000,
-  maxDelayMs: 10000,
-  backoffFactor: 2,
-};
+export interface RpcResponse<T = unknown> {
+  jsonrpc: '2.0';
+  id: number | string;
+  result?: T;
+  error?: {
+    code: number;
+    message: string;
+  };
+}
 
 /**
- * Executes an operation and retries it with exponential backoff and jitter if it fails.
- * Useful for resilient connection to blockchain RPC nodes and crypto APIs.
+ * Service to execute JSON-RPC calls with configurable exponential backoff retry logic.
  */
-export async function retryWithBackoff<T>(
-  operation: () => Promise<T>,
-  options: Partial<RetryOptions> = {}
-): Promise<T> {
-  const config = { ...DEFAULT_OPTIONS, ...options };
-  let attempt = 0;
+export class CryptoRpcService {
+  constructor(private readonly endpoint: string) {}
 
-  while (true) {
-    try {
-      return await operation();
-    } catch (error) {
-      attempt++;
+  /**
+   * Executes RPC call and automatically retries on transient network failures.
+   */
+  async executeWithRetry<T>(
+    method: string,
+    params: unknown[] = [],
+    options: RetryOptions = {}
+  ): Promise<T> {
+    const { maxRetries = 3, initialDelayMs = 500, backoffFactor = 2 } = options;
+    let currentDelay = initialDelayMs;
 
-      if (attempt > config.retries) {
-        throw error;
-      }
+    const payload = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method,
+      params,
+    };
 
-      if (config.retryableErrors && error instanceof Error) {
-        const isRetryable = config.retryableErrors.some((regex) =>
-          regex.test(error.message)
-        );
-        if (!isRetryable) {
-          throw error;
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        const response = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP network error: ${response.status} ${response.statusText}`);
         }
+
+        const data = (await response.json()) as RpcResponse<T>;
+        if (data.error) {
+          throw new Error(`RPC node error ${data.error.code}: ${data.error.message}`);
+        }
+
+        if (data.result === undefined) {
+          throw new Error('Malformed RPC response: missing result');
+        }
+
+        return data.result;
+      } catch (err) {
+        const error = err as Error;
+        if (attempt > maxRetries) {
+          throw new Error(`RPC call '${method}' failed after ${maxRetries} retries: ${error.message}`);
+        }
+
+        // Wait before retrying with exponential backoff
+        await new Promise((resolve) => setTimeout(resolve, currentDelay));
+        currentDelay *= backoffFactor;
       }
-
-      // Calculate delay using exponential backoff with full jitter
-      const rawDelay = Math.min(
-        config.maxDelayMs,
-        config.minDelayMs * Math.pow(config.backoffFactor, attempt - 1)
-      );
-      const jitteredDelay = Math.random() * rawDelay;
-
-      await new Promise((resolve) => setTimeout(resolve, jitteredDelay));
     }
+
+    throw new Error('Exceeded maximum retry attempts');
   }
 }
