@@ -1,39 +1,38 @@
-export interface CryptoConfig {
-  network: 'mainnet' | 'testnet' | 'localhost';
+export interface NetworkConfig {
   rpcUrl: string;
   chainId: number;
-  defaultGasLimit: bigint;
-  requestTimeoutMs: number;
   retryAttempts: number;
-  enableWebSocket: boolean;
 }
 
-const DEFAULT_CONFIG: CryptoConfig = {
-  network: 'mainnet',
-  rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/demo',
-  chainId: 1,
-  defaultGasLimit: 21000n,
-  requestTimeoutMs: 10000,
-  retryAttempts: 3,
-  enableWebSocket: false,
-};
+export const validateConfig = (config: Partial<NetworkConfig>): NetworkConfig => {
+  const defaults = {
+    rpcUrl: 'https://mainnet.infura.io/v3/',
+    chainId: 1,
+    retryAttempts: 3
+  };
 
-/**
- * Loads and merges crypto toolkit configuration with environment variables and custom overrides.
- */
-export function loadConfig(overrides: Partial<CryptoConfig> = {}): CryptoConfig {
-  const envNetwork = process.env.CRYPTO_NETWORK as CryptoConfig['network'] | undefined;
-  const envRpcUrl = process.env.CRYPTO_RPC_URL;
-  const envChainId = process.env.CRYPTO_CHAIN_ID ? parseInt(process.env.CRYPTO_CHAIN_ID, 10) : undefined;
+  if (!config.rpcUrl?.startsWith('https://')) {
+    throw new Error('invalid rpc endpoint provided in configuration');
+  }
 
-  const envConfig: Partial<CryptoConfig> = {};
-  if (envNetwork) envConfig.network = envNetwork;
-  if (envRpcUrl) envConfig.rpcUrl = envRpcUrl;
-  if (envChainId && !isNaN(envChainId)) envConfig.chainId = envChainId;
+  if (typeof config.chainId !== 'number' || config.chainId <= 0) {
+    throw new Error('invalid chain identifier specified');
+  }
 
   return {
-    ...DEFAULT_CONFIG,
-    ...envConfig,
-    ...overrides,
-  };
-}
+    ...defaults,
+    ...config
+  } as NetworkConfig;
+};
+
+export const getSecureConfig = (env: Record<string, string | undefined>): NetworkConfig => {
+  try {
+    return validateConfig({
+      rpcUrl: env.RPC_URL,
+      chainId: env.CHAIN_ID ? parseInt(env.CHAIN_ID, 10) : undefined
+    });
+  } catch (error) {
+    console.error('config initialization failure:', error instanceof Error ? error.message : 'unknown error');
+    throw new Error('failed to load crypto network settings');
+  }
+};
