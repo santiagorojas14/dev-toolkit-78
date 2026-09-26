@@ -1,30 +1,72 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
+export interface TokenData {
+  symbol: string;
+  priceUsd: number;
+  decimals: number;
+  lastUpdated: number;
+}
 
-/**
- * Crypto service logger with daily rotation
- * Retains logs for 14 days to manage disk usage
- */
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.simple()
-    }),
-    new winston.transports.DailyRotateFile({
-      filename: 'logs/dev-toolkit-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d'
-    })
-  ]
-});
+export class TokenPriceCacheService {
+  private cache = new Map<string, TokenData>();
+  private readonly ttlMs: number;
 
-export const logTransaction = (txHash: string, status: string): void => {
-  logger.info('transaction_update', { txHash, status, timestamp: new Date().toISOString() });
-};
+  constructor(ttlSeconds = 60) {
+    this.ttlMs = ttlSeconds * 1000;
+  }
+
+  /**
+   * Caches token data or updates existing entry if expired.
+   */
+  public set(address: string, data: Omit<TokenData, 'lastUpdated'>): void {
+    const normalizedAddress = address.toLowerCase();
+    this.cache.set(normalizedAddress, {
+      ...data,
+      lastUpdated: Date.now(),
+    });
+  }
+
+  /**
+   * Retrieves active token data. Returns null if expired or not found.
+   */
+  public get(address: string): TokenData | null {
+    const normalizedAddress = address.toLowerCase();
+    const cached = this.cache.get(normalizedAddress);
+
+    if (!cached) {
+      return null;
+    }
+
+    const isExpired = Date.now() - cached.lastUpdated > this.ttlMs;
+    if (isExpired) {
+      this.cache.delete(normalizedAddress);
+      return null;
+    }
+
+    return cached;
+  }
+
+  /**
+   * Batch retrieves non-expired cached tokens.
+   */
+  public getBatch(addresses: string[]): Record<string, TokenData> {
+    const result: Record<string, TokenData> = {};
+    for (const address of addresses) {
+      const cached = this.get(address);
+      if (cached) {
+        result[address.toLowerCase()] = cached;
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Clears all expired items to prevent memory leaks.
+   */
+  public prune(): void {
+    const now = Date.now();
+    for (const [address, cached] of this.cache.entries()) {
+      if (now - cached.lastUpdated > this.ttlMs) {
+        this.cache.delete(address);
+      }
+    }
+  }
+}
