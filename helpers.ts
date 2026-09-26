@@ -1,48 +1,34 @@
-import { BigNumber } from 'ethers';
+export interface RetryOptions {
+  maxAttempts: number;
+  delayMs: number;
+}
 
 /**
- * Formats a wei value to a human-readable string
+ * Retries an asynchronous operation with a constant backoff.
+ * Useful for unstable RPC endpoints in crypto networking.
  */
-export const formatUnits = (value: string | bigint, decimals: number = 18): string => {
-  const divisor = BigInt(10) ** BigInt(decimals);
-  const quotient = BigInt(value) / divisor;
-  const remainder = BigInt(value) % divisor;
-  return `${quotient}.${remainder.toString().padStart(decimals, '0')}`;
-};
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
+): Promise<T> {
+  let lastError: any;
 
-/**
- * Validates a standard EVM address format
- */
-export const isValidAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
-
-/**
- * Calculates slippage-adjusted price for trade execution
- */
-export const calculateSlippage = (
-  price: number, 
-  slippagePercent: number, 
-  isBuy: boolean
-): number => {
-  const factor = 1 + (isBuy ? slippagePercent / 100 : -slippagePercent / 100);
-  return price * factor;
-};
-
-/**
- * Delays execution for rate limiting purposes
- */
-export const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-/**
- * Sanitizes numeric input to handle string overflows
- */
-export const parseSafeBigInt = (input: string | number): bigint => {
-  try {
-    return BigInt(input);
-  } catch {
-    return 0n;
+  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < options.maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+      }
+    }
   }
-};
+
+  throw lastError;
+}
+
+/**
+ * Delays execution for a specified amount of time.
+ */
+export const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
