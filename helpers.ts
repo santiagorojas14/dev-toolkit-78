@@ -1,34 +1,42 @@
-export interface RetryOptions {
-  maxAttempts: number;
-  delayMs: number;
+/**
+ * Crypto utility helpers for dev-toolkit-78
+ */
+
+export interface TransactionConfig {
+  asset: string;
+  amount: bigint;
+  recipient: string;
+  gasLimit?: number;
 }
 
 /**
- * Retries an asynchronous operation with a constant backoff.
- * Useful for unstable RPC endpoints in crypto networking.
+ * Validates crypto address format against simple heuristic
  */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
-): Promise<T> {
-  let lastError: any;
-
-  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (attempt < options.maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, options.delayMs));
-      }
-    }
-  }
-
-  throw lastError;
-}
+export const isValidAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
 
 /**
- * Delays execution for a specified amount of time.
+ * Normalizes asset amounts from human-readable strings to atomic units
  */
-export const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+export const toAtomicUnits = (amount: string, decimals: number): bigint => {
+  const [integer, fraction = ''] = amount.split('.');
+  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+  return BigInt(integer + paddedFraction);
+};
+
+/**
+ * Calculates estimated gas cost based on standard rate
+ */
+export const calculateGasCost = (limit: number, priceGwei: number): bigint => {
+  return BigInt(limit) * BigInt(priceGwei) * 1_000_000_000n;
+};
+
+/**
+ * Formats big integers for UI display with precision
+ */
+export const formatCurrency = (amount: bigint, decimals: number): string => {
+  const str = amount.toString().padStart(decimals + 1, '0');
+  const splitPoint = str.length - decimals;
+  return `${str.slice(0, splitPoint)}.${str.slice(splitPoint)}`;
+};
