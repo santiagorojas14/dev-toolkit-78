@@ -1,43 +1,54 @@
-export class CryptoError extends Error {
-  constructor(public message: string, public code: string, public retryable: boolean = false) {
-    super(message);
-    this.name = 'CryptoError';
-  }
+export interface TransactionInput {
+  id: string;
+  recipient: string;
+  amountWei: string;
+  chainId: number;
 }
 
-/**
- * Safely handles transaction parsing with explicit error categorization
- */
-export function parseTransaction(data: unknown): any {
-  if (data === null || typeof data !== 'object') {
-    throw new CryptoError('Invalid transaction format', 'ERR_INVALID_DATA', false);
-  }
-
-  try {
-    const tx = JSON.parse(JSON.stringify(data));
-    if (!tx.hash || !tx.nonce) {
-      throw new CryptoError('Missing required fields', 'ERR_MISSING_FIELDS', false);
-    }
-    return tx;
-  } catch (err) {
-    if (err instanceof CryptoError) throw err;
-    throw new CryptoError('Malformed transaction structure', 'ERR_MALFORMED', false);
-  }
+export interface ValidationResult {
+  validInputs: TransactionInput[];
+  invalidInputs: Array<{ input: TransactionInput; error: string }>;
 }
 
+const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+const SUPPORTED_CHAIN_IDS = [1, 56, 137, 42161, 10];
+
 /**
- * Wrapper for network calls to ensure connectivity issues are catchable
+ * Validates and filters a batch of crypto transactions in the main processing loop.
  */
-export async function safeFetch<T>(url: string): Promise<T> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      const retryable = response.status >= 500;
-      throw new CryptoError(`Request failed with status ${response.status}`, 'ERR_NETWORK', retryable);
+export function processAndValidateBatch(inputs: TransactionInput[]): ValidationResult {
+  const validInputs: TransactionInput[] = [];
+  const invalidInputs: Array<{ input: TransactionInput; error: string }> = [];
+
+  for (const item of inputs) {
+    if (!item.id || typeof item.id !== 'string') {
+      invalidInputs.push({ input: item, error: 'Invalid or missing transaction ID' });
+      continue;
     }
-    return await response.json();
-  } catch (err) {
-    if (err instanceof CryptoError) throw err;
-    throw new CryptoError('Unexpected transport failure', 'ERR_TRANSPORT', true);
+
+    if (!item.recipient || !EVM_ADDRESS_REGEX.test(item.recipient)) {
+      invalidInputs.push({ input: item, error: 'Invalid EVM recipient address' });
+      continue;
+    }
+
+    try {
+      const amount = BigInt(item.amountWei);
+      if (amount <= 0n) {
+        invalidInputs.push({ input: item, error: 'Amount must be greater than zero' });
+        continue;
+      }
+    } catch {
+      invalidInputs.push({ input: item, error: 'Amount must be a valid numeric string' });
+      continue;
+    }
+
+    if (!SUPPORTED_CHAIN_IDS.includes(item.chainId)) {
+      invalidInputs.push({ input: item, error: `Unsupported chain ID: ${item.chainId}` });
+      continue;
+    }
+
+    validInputs.push(item);
   }
+
+  return { validInputs, invalidInputs };
 }
