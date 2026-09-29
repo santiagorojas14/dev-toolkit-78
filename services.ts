@@ -1,63 +1,61 @@
-export interface TransactionPayload {
-  txHash: string;
-  fromAddress: string;
-  toAddress: string;
-  amount: string;
-  chainId: number;
+import { EventEmitter } from "events";
+
+interface GasEstimate {
+  low: number;
+  standard: number;
+  fast: number;
+  timestamp: number;
 }
 
-export interface ProcessingResult {
-  successful: string[];
-  failed: { txHash: string; reason: string }[];
-}
+export class GasPriceOracle extends EventEmitter {
+  private cache: GasEstimate | null = null;
+  private cacheDurationMs: number;
+  private rpcUrl: string;
 
-export class BatchTransactionService {
-  private supportedChainIds: Set<number> = new Set([1, 137, 42161]);
-  private addressRegex: RegExp = /^0x[a-fA-F0-9]{40}$/;
-  private txHashRegex: RegExp = /^0x[a-fA-F0-9]{64}$/;
-
-  public processBatch(payloads: TransactionPayload[]): ProcessingResult {
-    const result: ProcessingResult = { successful: [], failed: [] };
-
-    for (const tx of payloads) {
-      const validationError = this.validateTransaction(tx);
-      if (validationError) {
-        result.failed.push({ txHash: tx?.txHash || 'unknown', reason: validationError });
-        continue;
-      }
-
-      try {
-        this.executeTransaction(tx);
-        result.successful.push(tx.txHash);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Execution failed';
-        result.failed.push({ txHash: tx.txHash, reason: message });
-      }
-    }
-
-    return result;
+  constructor(rpcUrl: string, cacheDurationMs = 15000) {
+    super();
+    this.rpcUrl = rpcUrl;
+    this.cacheDurationMs = cacheDurationMs;
   }
 
-  private validateTransaction(tx: TransactionPayload): string | null {
-    if (!tx || typeof tx !== 'object') return 'Invalid payload structure';
-    if (!this.txHashRegex.test(tx.txHash)) return 'Invalid transaction hash format';
-    if (!this.addressRegex.test(tx.fromAddress)) return 'Invalid sender address';
-    if (!this.addressRegex.test(tx.toAddress)) return 'Invalid recipient address';
-    if (!this.supportedChainIds.has(tx.chainId)) return 'Unsupported chain ID';
-    
+  private isCacheValid(): boolean {
+    if (!this.cache) return false;
+    return Date.now() - this.cache.timestamp < this.cacheDurationMs;
+  }
+
+  private async fetchLatestPrices(): Promise<GasEstimate> {
+    // Simulate RPC delay and gas calculations
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const baseFee = Math.floor(Math.random() * 30) + 15;
+    return {
+      low: Math.round(baseFee * 1.15),
+      standard: Math.round(baseFee * 1.3),
+      fast: Math.round(baseFee * 1.6),
+      timestamp: Date.now(),
+    };
+  }
+
+  public async getGasPrices(forceRefresh = false): Promise<GasEstimate> {
+    if (!forceRefresh && this.isCacheValid() && this.cache) {
+      this.emit("cacheHit");
+      return this.cache;
+    }
+
+    this.emit("cacheMiss");
     try {
-      const amount = BigInt(tx.amount);
-      if (amount <= 0n) return 'Amount must be greater than zero';
-    } catch {
-      return 'Invalid numeric amount';
+      const freshPrices = await this.fetchLatestPrices();
+      this.cache = freshPrices;
+      return freshPrices;
+    } catch (error) {
+      if (this.cache) {
+        this.emit("cacheFallback", error);
+        return this.cache;
+      }
+      throw error;
     }
-
-    return null;
   }
 
-  private executeTransaction(tx: TransactionPayload): void {
-    if (tx.fromAddress === tx.toAddress) {
-      throw new Error('Self-transfer is not allowed');
-    }
+  public clearCache(): void {
+    this.cache = null;
   }
 }
