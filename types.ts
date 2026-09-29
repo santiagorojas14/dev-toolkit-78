@@ -1,33 +1,48 @@
 export interface CryptoTransaction {
   id: string;
   amount: number;
-  currency: 'BTC' | 'ETH' | 'SOL';
+  currency: string;
   timestamp: number;
 }
 
-export const validateTransaction = (tx: unknown): tx is CryptoTransaction => {
-  if (typeof tx !== 'object' || tx === null) return false;
+export type ValidationResult = { isValid: true } | { isValid: false; error: string };
 
-  const { id, amount, currency, timestamp } = tx as any;
+/**
+ * input validation for main crypto processing loop
+ */
+export const validateTransaction = (tx: unknown): ValidationResult => {
+  if (!tx || typeof tx !== 'object') {
+    return { isValid: false, error: 'transaction payload must be an object' };
+  }
 
-  const isIdValid = typeof id === 'string' && id.length > 0;
-  const isAmountValid = typeof amount === 'number' && amount > 0;
-  const isCurrencyValid = ['BTC', 'ETH', 'SOL'].includes(currency);
-  const isTimestampValid = typeof timestamp === 'number' && timestamp <= Date.now();
+  const { id, amount, currency } = tx as Partial<CryptoTransaction>;
 
-  return isIdValid && isAmountValid && isCurrencyValid && isTimestampValid;
+  if (typeof id !== 'string' || id.length === 0) {
+    return { isValid: false, error: 'invalid or missing transaction id' };
+  }
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    return { isValid: false, error: 'invalid transaction amount' };
+  }
+
+  if (typeof currency !== 'string' || currency.length < 3) {
+    return { isValid: false, error: 'invalid currency code' };
+  }
+
+  return { isValid: true };
 };
 
-export const processTransactions = (data: unknown[]): CryptoTransaction[] => {
-  const validTransactions: CryptoTransaction[] = [];
+export const processLoop = (transactions: unknown[]): CryptoTransaction[] => {
+  const validated: CryptoTransaction[] = [];
 
-  for (const item of data) {
-    if (validateTransaction(item)) {
-      validTransactions.push(item);
+  for (const tx of transactions) {
+    const result = validateTransaction(tx);
+    if (result.isValid) {
+      validated.push(tx as CryptoTransaction);
     } else {
-      console.error('Invalid transaction payload skipped', item);
+      console.error(`skipping invalid tx: ${result.error}`);
     }
   }
 
-  return validTransactions;
+  return validated;
 };
