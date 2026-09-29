@@ -1,72 +1,63 @@
-export interface TokenData {
-  symbol: string;
-  priceUsd: number;
-  decimals: number;
-  lastUpdated: number;
+export interface TransactionPayload {
+  txHash: string;
+  fromAddress: string;
+  toAddress: string;
+  amount: string;
+  chainId: number;
 }
 
-export class TokenPriceCacheService {
-  private cache = new Map<string, TokenData>();
-  private readonly ttlMs: number;
+export interface ProcessingResult {
+  successful: string[];
+  failed: { txHash: string; reason: string }[];
+}
 
-  constructor(ttlSeconds = 60) {
-    this.ttlMs = ttlSeconds * 1000;
-  }
+export class BatchTransactionService {
+  private supportedChainIds: Set<number> = new Set([1, 137, 42161]);
+  private addressRegex: RegExp = /^0x[a-fA-F0-9]{40}$/;
+  private txHashRegex: RegExp = /^0x[a-fA-F0-9]{64}$/;
 
-  /**
-   * Caches token data or updates existing entry if expired.
-   */
-  public set(address: string, data: Omit<TokenData, 'lastUpdated'>): void {
-    const normalizedAddress = address.toLowerCase();
-    this.cache.set(normalizedAddress, {
-      ...data,
-      lastUpdated: Date.now(),
-    });
-  }
+  public processBatch(payloads: TransactionPayload[]): ProcessingResult {
+    const result: ProcessingResult = { successful: [], failed: [] };
 
-  /**
-   * Retrieves active token data. Returns null if expired or not found.
-   */
-  public get(address: string): TokenData | null {
-    const normalizedAddress = address.toLowerCase();
-    const cached = this.cache.get(normalizedAddress);
+    for (const tx of payloads) {
+      const validationError = this.validateTransaction(tx);
+      if (validationError) {
+        result.failed.push({ txHash: tx?.txHash || 'unknown', reason: validationError });
+        continue;
+      }
 
-    if (!cached) {
-      return null;
-    }
-
-    const isExpired = Date.now() - cached.lastUpdated > this.ttlMs;
-    if (isExpired) {
-      this.cache.delete(normalizedAddress);
-      return null;
-    }
-
-    return cached;
-  }
-
-  /**
-   * Batch retrieves non-expired cached tokens.
-   */
-  public getBatch(addresses: string[]): Record<string, TokenData> {
-    const result: Record<string, TokenData> = {};
-    for (const address of addresses) {
-      const cached = this.get(address);
-      if (cached) {
-        result[address.toLowerCase()] = cached;
+      try {
+        this.executeTransaction(tx);
+        result.successful.push(tx.txHash);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Execution failed';
+        result.failed.push({ txHash: tx.txHash, reason: message });
       }
     }
+
     return result;
   }
 
-  /**
-   * Clears all expired items to prevent memory leaks.
-   */
-  public prune(): void {
-    const now = Date.now();
-    for (const [address, cached] of this.cache.entries()) {
-      if (now - cached.lastUpdated > this.ttlMs) {
-        this.cache.delete(address);
-      }
+  private validateTransaction(tx: TransactionPayload): string | null {
+    if (!tx || typeof tx !== 'object') return 'Invalid payload structure';
+    if (!this.txHashRegex.test(tx.txHash)) return 'Invalid transaction hash format';
+    if (!this.addressRegex.test(tx.fromAddress)) return 'Invalid sender address';
+    if (!this.addressRegex.test(tx.toAddress)) return 'Invalid recipient address';
+    if (!this.supportedChainIds.has(tx.chainId)) return 'Unsupported chain ID';
+    
+    try {
+      const amount = BigInt(tx.amount);
+      if (amount <= 0n) return 'Amount must be greater than zero';
+    } catch {
+      return 'Invalid numeric amount';
+    }
+
+    return null;
+  }
+
+  private executeTransaction(tx: TransactionPayload): void {
+    if (tx.fromAddress === tx.toAddress) {
+      throw new Error('Self-transfer is not allowed');
     }
   }
 }
