@@ -1,61 +1,61 @@
-import { EventEmitter } from "events";
-
-interface GasEstimate {
-  low: number;
-  standard: number;
-  fast: number;
+export interface TokenPrice {
+  symbol: string;
+  priceUsd: number;
   timestamp: number;
 }
 
-export class GasPriceOracle extends EventEmitter {
-  private cache: GasEstimate | null = null;
-  private cacheDurationMs: number;
-  private rpcUrl: string;
+export class CryptoPriceService {
+  private cache: Map<string, TokenPrice> = new Map();
+  private ttlMs: number;
 
-  constructor(rpcUrl: string, cacheDurationMs = 15000) {
-    super();
-    this.rpcUrl = rpcUrl;
-    this.cacheDurationMs = cacheDurationMs;
+  constructor(ttlSeconds: number = 60) {
+    this.ttlMs = ttlSeconds * 1000;
   }
 
-  private isCacheValid(): boolean {
-    if (!this.cache) return false;
-    return Date.now() - this.cache.timestamp < this.cacheDurationMs;
-  }
+  /**
+   * Retrieves cached price or fetches fresh data if expired.
+   */
+  public async getPrice(symbol: string, fetcher: (sym: string) => Promise<number>): Promise<TokenPrice> {
+    const uppercaseSymbol = symbol.toUpperCase();
+    const cached = this.cache.get(uppercaseSymbol);
+    const now = Date.now();
 
-  private async fetchLatestPrices(): Promise<GasEstimate> {
-    // Simulate RPC delay and gas calculations
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    const baseFee = Math.floor(Math.random() * 30) + 15;
-    return {
-      low: Math.round(baseFee * 1.15),
-      standard: Math.round(baseFee * 1.3),
-      fast: Math.round(baseFee * 1.6),
-      timestamp: Date.now(),
+    if (cached && (now - cached.timestamp < this.ttlMs)) {
+      return cached;
+    }
+
+    const priceUsd = await fetcher(uppercaseSymbol);
+    const entry: TokenPrice = {
+      symbol: uppercaseSymbol,
+      priceUsd,
+      timestamp: now,
     };
+
+    this.cache.set(uppercaseSymbol, entry);
+    return entry;
   }
 
-  public async getGasPrices(forceRefresh = false): Promise<GasEstimate> {
-    if (!forceRefresh && this.isCacheValid() && this.cache) {
-      this.emit("cacheHit");
-      return this.cache;
-    }
+  /**
+   * Purges stale entries from internal memory cache.
+   */
+  public purgeStaleCache(): number {
+    const now = Date.now();
+    let purgedCount = 0;
 
-    this.emit("cacheMiss");
-    try {
-      const freshPrices = await this.fetchLatestPrices();
-      this.cache = freshPrices;
-      return freshPrices;
-    } catch (error) {
-      if (this.cache) {
-        this.emit("cacheFallback", error);
-        return this.cache;
+    for (const [symbol, entry] of this.cache.entries()) {
+      if (now - entry.timestamp >= this.ttlMs) {
+        this.cache.delete(symbol);
+        purgedCount++;
       }
-      throw error;
     }
+
+    return purgedCount;
   }
 
-  public clearCache(): void {
-    this.cache = null;
+  /**
+   * Resets all cached token price data.
+   */
+  public clearAll(): void {
+    this.cache.clear();
   }
 }
