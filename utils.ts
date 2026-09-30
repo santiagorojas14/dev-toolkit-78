@@ -1,54 +1,49 @@
-export interface TransactionInput {
-  id: string;
-  recipient: string;
-  amountWei: string;
-  chainId: number;
-}
-
-export interface ValidationResult {
-  validInputs: TransactionInput[];
-  invalidInputs: Array<{ input: TransactionInput; error: string }>;
-}
-
-const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
-const SUPPORTED_CHAIN_IDS = [1, 56, 137, 42161, 10];
-
 /**
- * Validates and filters a batch of crypto transactions in the main processing loop.
+ * Converts a raw token balance (BigInt or string) to a human-readable decimal string.
+ * Useful for formatting ERC-20 tokens (e.g., 18 decimals) or Bitcoin (8 decimals).
  */
-export function processAndValidateBatch(inputs: TransactionInput[]): ValidationResult {
-  const validInputs: TransactionInput[] = [];
-  const invalidInputs: Array<{ input: TransactionInput; error: string }> = [];
+export function formatTokenAmount(amount: bigint | string, decimals: number = 18): string {
+  const amt = BigInt(amount);
+  const base = 10n ** BigInt(decimals);
+  const integerPart = amt / base;
+  const fractionalPart = amt % base;
 
-  for (const item of inputs) {
-    if (!item.id || typeof item.id !== 'string') {
-      invalidInputs.push({ input: item, error: 'Invalid or missing transaction ID' });
-      continue;
-    }
-
-    if (!item.recipient || !EVM_ADDRESS_REGEX.test(item.recipient)) {
-      invalidInputs.push({ input: item, error: 'Invalid EVM recipient address' });
-      continue;
-    }
-
-    try {
-      const amount = BigInt(item.amountWei);
-      if (amount <= 0n) {
-        invalidInputs.push({ input: item, error: 'Amount must be greater than zero' });
-        continue;
-      }
-    } catch {
-      invalidInputs.push({ input: item, error: 'Amount must be a valid numeric string' });
-      continue;
-    }
-
-    if (!SUPPORTED_CHAIN_IDS.includes(item.chainId)) {
-      invalidInputs.push({ input: item, error: `Unsupported chain ID: ${item.chainId}` });
-      continue;
-    }
-
-    validInputs.push(item);
+  if (fractionalPart === 0n) {
+    return integerPart.toString();
   }
 
-  return { validInputs, invalidInputs };
+  // Pad fractional part with leading zeros
+  let fractionStr = fractionalPart.toString().padStart(decimals, '0');
+  // Trim trailing zeros for cleaner representation
+  fractionStr = fractionStr.replace(/0+$/, '');
+
+  return `${integerPart}.${fractionStr}`;
+}
+
+/**
+ * Parses a decimal string (human readable) into a raw token amount BigInt based on decimals.
+ */
+export function parseTokenAmount(amount: string, decimals: number = 18): bigint {
+  const parts = amount.split('.');
+  if (parts.length > 2) {
+    throw new Error('Invalid decimal format');
+  }
+
+  const [integerPart, fractionalPart = ''] = parts;
+  const cleanFractionalStr = fractionalPart.slice(0, decimals).padEnd(decimals, '0');
+
+  const integerVal = BigInt(integerPart) * (10n ** BigInt(decimals));
+  const fractionalVal = BigInt(cleanFractionalStr);
+
+  return integerVal + fractionalVal;
+}
+
+/**
+ * Masks a crypto address for UI presentation (e.g., 0x1234...5678)
+ */
+export function maskAddress(address: string, startChars: number = 6, endChars: number = 4): string {
+  if (address.length <= startChars + endChars) {
+    return address;
+  }
+  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
 }
