@@ -1,48 +1,47 @@
-export interface CryptoTransaction {
-  id: string;
-  amount: number;
-  currency: string;
+/**
+ * Represents the core asset configuration for dev-toolkit-78
+ */
+export interface CryptoAsset {
+  symbol: string;
+  decimals: number;
+  contractAddress: string | null;
+  isStablecoin: boolean;
+}
+
+/**
+ * Standardized response for blockchain RPC calls
+ */
+export interface RpcResponse<T> {
+  result: T;
+  error: string | null;
+  id: number;
   timestamp: number;
 }
 
-export type ValidationResult = { isValid: true } | { isValid: false; error: string };
+/**
+ * Transaction metadata for cross-chain bridging
+ */
+export interface BridgeTransaction {
+  txHash: string;
+  fromChainId: number;
+  toChainId: number;
+  amount: bigint;
+  status: 'pending' | 'confirmed' | 'failed';
+}
 
 /**
- * input validation for main crypto processing loop
+ * Configuration for network connection parameters
  */
-export const validateTransaction = (tx: unknown): ValidationResult => {
-  if (!tx || typeof tx !== 'object') {
-    return { isValid: false, error: 'transaction payload must be an object' };
-  }
+export interface NetworkConfig {
+  rpcUrl: string;
+  chainId: number;
+  priorityFee: number;
+  timeoutMs: number;
+}
 
-  const { id, amount, currency } = tx as Partial<CryptoTransaction>;
+export type AssetMap = Record<string, CryptoAsset>;
 
-  if (typeof id !== 'string' || id.length === 0) {
-    return { isValid: false, error: 'invalid or missing transaction id' };
-  }
-
-  if (typeof amount !== 'number' || amount <= 0) {
-    return { isValid: false, error: 'invalid transaction amount' };
-  }
-
-  if (typeof currency !== 'string' || currency.length < 3) {
-    return { isValid: false, error: 'invalid currency code' };
-  }
-
-  return { isValid: true };
-};
-
-export const processLoop = (transactions: unknown[]): CryptoTransaction[] => {
-  const validated: CryptoTransaction[] = [];
-
-  for (const tx of transactions) {
-    const result = validateTransaction(tx);
-    if (result.isValid) {
-      validated.push(tx as CryptoTransaction);
-    } else {
-      console.error(`skipping invalid tx: ${result.error}`);
-    }
-  }
-
-  return validated;
+export const DEFAULT_ASSETS: AssetMap = {
+  ETH: { symbol: 'ETH', decimals: 18, contractAddress: null, isStablecoin: false },
+  USDC: { symbol: 'USDC', decimals: 6, contractAddress: '0xa0b8...', isStablecoin: true }
 };
