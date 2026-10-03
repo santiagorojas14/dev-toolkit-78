@@ -1,49 +1,37 @@
-/**
- * Converts a raw token balance (BigInt or string) to a human-readable decimal string.
- * Useful for formatting ERC-20 tokens (e.g., 18 decimals) or Bitcoin (8 decimals).
- */
-export function formatTokenAmount(amount: bigint | string, decimals: number = 18): string {
-  const amt = BigInt(amount);
-  const base = 10n ** BigInt(decimals);
-  const integerPart = amt / base;
-  const fractionalPart = amt % base;
-
-  if (fractionalPart === 0n) {
-    return integerPart.toString();
-  }
-
-  // Pad fractional part with leading zeros
-  let fractionStr = fractionalPart.toString().padStart(decimals, '0');
-  // Trim trailing zeros for cleaner representation
-  fractionStr = fractionStr.replace(/0+$/, '');
-
-  return `${integerPart}.${fractionStr}`;
+interface Transaction {
+  id: string;
+  amount: number;
+  currency: string;
 }
 
 /**
- * Parses a decimal string (human readable) into a raw token amount BigInt based on decimals.
+ * validate crypto transaction structure
+ * ensures input meets processing requirements
  */
-export function parseTokenAmount(amount: string, decimals: number = 18): bigint {
-  const parts = amount.split('.');
-  if (parts.length > 2) {
-    throw new Error('Invalid decimal format');
-  }
+export function validateTransaction(tx: unknown): tx is Transaction {
+  if (!tx || typeof tx !== 'object') return false;
 
-  const [integerPart, fractionalPart = ''] = parts;
-  const cleanFractionalStr = fractionalPart.slice(0, decimals).padEnd(decimals, '0');
+  const { id, amount, currency } = tx as Partial<Transaction>;
 
-  const integerVal = BigInt(integerPart) * (10n ** BigInt(decimals));
-  const fractionalVal = BigInt(cleanFractionalStr);
-
-  return integerVal + fractionalVal;
+  return (
+    typeof id === 'string' &&
+    id.length > 0 &&
+    typeof amount === 'number' &&
+    amount > 0 &&
+    typeof currency === 'string' &&
+    currency.length === 3
+  );
 }
 
 /**
- * Masks a crypto address for UI presentation (e.g., 0x1234...5678)
+ * processing loop entry guard
+ * filters invalid data before block execution
  */
-export function maskAddress(address: string, startChars: number = 6, endChars: number = 4): string {
-  if (address.length <= startChars + endChars) {
-    return address;
-  }
-  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
+export function processTransactions(data: unknown[]): Transaction[] {
+  return data.reduce<Transaction[]>((acc, entry) => {
+    if (validateTransaction(entry)) {
+      acc.push(entry);
+    }
+    return acc;
+  }, []);
 }
