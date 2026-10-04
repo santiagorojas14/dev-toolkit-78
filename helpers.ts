@@ -1,33 +1,46 @@
-export interface Transaction {
-  id: string;
-  amount: number;
-  asset: string;
+/**
+ * Crypto utility helpers for dev-toolkit-78
+ */
+
+export interface TransactionRecord {
+  hash: string;
+  amount: bigint;
+  timestamp: number;
 }
 
 /**
- * Validates crypto transaction objects to ensure processing integrity.
+ * Formats a BigInt crypto amount into a human-readable decimal string
  */
-export const isValidTransaction = (tx: any): tx is Transaction => {
-  if (typeof tx !== 'object' || tx === null) return false;
-  if (typeof tx.id !== 'string' || tx.id.length < 8) return false;
-  if (typeof tx.amount !== 'number' || tx.amount <= 0) return false;
-  if (typeof tx.asset !== 'string' || tx.asset.length < 3) return false;
-  return true;
+export const formatAmount = (amount: bigint, decimals: number = 18): string => {
+  const divisor = BigInt(10) ** BigInt(decimals);
+  const integerPart = amount / divisor;
+  const fractionalPart = amount % divisor;
+
+  return `${integerPart}.${fractionalPart.toString().padStart(decimals, '0')}`;
 };
 
 /**
- * Main processing loop validation utility for dev-toolkit-78.
+ * Validates a standard hexadecimal hash string
  */
-export const processTransactions = (data: unknown[]): Transaction[] => {
-  const validTransactions: Transaction[] = [];
-  
-  for (const item of data) {
-    if (isValidTransaction(item)) {
-      validTransactions.push(item);
-    } else {
-      console.warn('Skipping malformed transaction:', item);
-    }
+export const isValidHash = (hash: string): boolean => {
+  return /^0x[0-9a-fA-F]{64}$/.test(hash);
+};
+
+/**
+ * Safely parses a string into a BigInt to prevent overflow errors
+ */
+export const safeParseBigInt = (value: string | number): bigint => {
+  try {
+    return BigInt(value);
+  } catch (error) {
+    console.error('Failed to parse bigint', error);
+    return 0n;
   }
-  
-  return validTransactions;
+};
+
+/**
+ * Calculates the absolute difference between two crypto amounts
+ */
+export const getDelta = (a: bigint, b: bigint): bigint => {
+  return a > b ? a - b : b - a;
 };
