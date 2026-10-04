@@ -1,39 +1,40 @@
-/**
- * Crypto edge case error handlers for dev-toolkit-78
- */
+import winston from 'winston';
+import 'winston-daily-rotate-file';
+import path from 'path';
 
-export class CryptoError extends Error {
-  constructor(public message: string, public code: string) {
-    super(message);
-    this.name = 'CryptoError';
-  }
+const logDirectory = process.env.LOG_DIR || 'logs';
+
+/**
+ * Configures a rotating file logger for crypto operation audits
+ */
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      filename: path.join(logDirectory, 'dev-toolkit-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
+
+export interface LogMeta {
+  txHash?: string;
+  asset?: string;
+  code?: number;
 }
 
-export const validateTransaction = (amount: number, balance: number): void => {
-  if (amount <= 0) {
-    throw new CryptoError('Transaction amount must be positive', 'INVALID_AMOUNT');
-  }
-
-  if (amount > balance) {
-    throw new CryptoError('Insufficient funds for transaction', 'INSUFFICIENT_BALANCE');
-  }
+export const logInfo = (message: string, meta?: LogMeta) => {
+  logger.info(message, meta);
 };
 
-export const handleProviderError = (err: unknown): string => {
-  if (err instanceof Error) {
-    // Handle specific RPC provider connection drops
-    if (err.message.includes('connection refused')) {
-      return 'RPC_NODE_OFFLINE';
-    }
-    return err.message;
-  }
-  return 'UNKNOWN_PROVIDER_FAILURE';
-};
-
-export const safeBigIntConversion = (value: any): bigint => {
-  try {
-    return BigInt(value);
-  } catch {
-    throw new CryptoError('Invalid hex or numeric string format', 'INVALID_BIGINT_FORMAT');
-  }
+export const logError = (message: string, error?: unknown, meta?: LogMeta) => {
+  logger.error(message, { ...meta, error: String(error) });
 };
