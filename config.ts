@@ -1,35 +1,39 @@
-import { readFileSync } from 'fs';
-
-interface CryptoConfig {
+export interface CryptoConfig {
+  network: 'mainnet' | 'testnet' | 'localhost';
   rpcUrl: string;
-  chainId: number;
-  timeoutMs: number;
+  gasLimitDefault: number;
+  retryAttempts: number;
+  enableCache: boolean;
 }
 
 const DEFAULT_CONFIG: CryptoConfig = {
-  rpcUrl: 'https://mainnet.infura.io/v3/default',
-  chainId: 1,
-  timeoutMs: 5000,
+  network: 'mainnet',
+  rpcUrl: 'https://eth.llamarpc.com',
+  gasLimitDefault: 21000,
+  retryAttempts: 3,
+  enableCache: true,
 };
 
 /**
- * Merges local file config with environment defaults
+ * Loads and validates configuration variables for decentralized operations
+ * Merges user-defined environment settings with standard safe fallbacks
  */
-export function loadConfig(path?: string): CryptoConfig {
-  try {
-    if (!path) return DEFAULT_CONFIG;
-    
-    const fileContent = readFileSync(path, 'utf-8');
-    const parsed = JSON.parse(fileContent);
-    
-    return {
-      ...DEFAULT_CONFIG,
-      ...parsed
-    };
-  } catch (error) {
-    console.warn('Failed to load config, falling back to defaults');
-    return DEFAULT_CONFIG;
-  }
-}
+export function loadConfig(env: Record<string, string | undefined> = {}): CryptoConfig {
+  const network = (env.CRYPTO_NETWORK || DEFAULT_CONFIG.network) as CryptoConfig['network'];
+  
+  const rawGasLimit = env.CRYPTO_GAS_LIMIT 
+    ? parseInt(env.CRYPTO_GAS_LIMIT, 10) 
+    : DEFAULT_CONFIG.gasLimitDefault;
 
-export type { CryptoConfig };
+  const rawRetries = env.CRYPTO_RETRY_ATTEMPTS 
+    ? parseInt(env.CRYPTO_RETRY_ATTEMPTS, 10) 
+    : DEFAULT_CONFIG.retryAttempts;
+
+  return {
+    network: ['mainnet', 'testnet', 'localhost'].includes(network) ? network : DEFAULT_CONFIG.network,
+    rpcUrl: env.CRYPTO_RPC_URL || DEFAULT_CONFIG.rpcUrl,
+    gasLimitDefault: isNaN(rawGasLimit) ? DEFAULT_CONFIG.gasLimitDefault : rawGasLimit,
+    retryAttempts: isNaN(rawRetries) ? DEFAULT_CONFIG.retryAttempts : rawRetries,
+    enableCache: env.CRYPTO_ENABLE_CACHE !== 'false',
+  };
+}
