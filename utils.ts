@@ -1,46 +1,31 @@
-export interface RetryOptions {
-  maxRetries?: number;
-  initialDelayMs?: number;
-  maxDelayMs?: number;
-  backoffFactor?: number;
-  shouldRetry?: (error: unknown) => boolean;
-}
+import { createLogger, format, transports, Logger } from 'winston';
+import 'winston-daily-rotate-file';
 
 /**
- * Executes an async network operation with exponential backoff and jitter.
- * Designed for handling crypto RPC rate limits and transient network glitches.
+ * Configuration for dev-toolkit-78 logging system
+ * Rotates files daily and retains 14 days of history
  */
-export async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
-  const {
-    maxRetries = 3,
-    initialDelayMs = 500,
-    maxDelayMs = 10000,
-    backoffFactor = 2,
-    shouldRetry = () => true,
-  } = options;
+export const logger: Logger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    format.json()
+  ),
+  transports: [
+    new transports.Console({
+      format: format.combine(format.colorize(), format.simple())
+    }),
+    new (transports as any).DailyRotateFile({
+      filename: 'logs/crypto-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
 
-  let attempt = 0;
-  let delay = initialDelayMs;
-
-  while (true) {
-    try {
-      return await fn();
-    } catch (error) {
-      attempt++;
-
-      if (attempt > maxRetries || !shouldRetry(error)) {
-        throw error;
-      }
-
-      // Exponential backoff with full jitter to avoid RPC thundering herd issues
-      const currentMax = Math.min(delay, maxDelayMs);
-      const jitteredDelay = Math.floor(Math.random() * currentMax);
-
-      await new Promise((resolve) => setTimeout(resolve, jitteredDelay));
-      delay *= backoffFactor;
-    }
-  }
-}
+// Usage example for crypto operations
+export const logTrade = (pair: string, amount: number) => {
+  logger.info('Trade executed', { pair, amount, timestamp: new Date().toISOString() });
+};
