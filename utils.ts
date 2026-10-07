@@ -1,43 +1,46 @@
-import { BigNumber } from 'ethers';
-
-/**
- * Formats token amounts for display purposes
- */
-export const formatTokenAmount = (amount: string, decimals: number = 18): string => {
-  const bn = BigNumber.from(amount);
-  const divisor = BigNumber.from(10).pow(decimals);
-  return (bn.div(divisor)).toString() + '.' + (bn.mod(divisor)).toString().padStart(decimals, '0').slice(0, 4);
-};
-
-/**
- * Calculates slippage impact for trading operations
- */
-export const calculateSlippage = (expected: BigNumber, actual: BigNumber): number => {
-  const diff = expected.sub(actual).abs();
-  const percentage = diff.mul(10000).div(expected);
-  return percentage.toNumber() / 100;
-};
-
-/**
- * Standardized retry wrapper for async network calls
- */
-export async function retryOperation<T>(
-  fn: () => Promise<T>,
-  retries: number = 3,
-  delay: number = 1000
-): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries <= 0) throw error;
-    await new Promise((resolve) => setTimeout(resolve, delay));
-    return retryOperation(fn, retries - 1, delay);
-  }
+export interface RetryOptions {
+  maxRetries?: number;
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+  backoffFactor?: number;
+  shouldRetry?: (error: unknown) => boolean;
 }
 
 /**
- * Validates checksum of crypto addresses
+ * Executes an async network operation with exponential backoff and jitter.
+ * Designed for handling crypto RPC rate limits and transient network glitches.
  */
-export const isValidAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const {
+    maxRetries = 3,
+    initialDelayMs = 500,
+    maxDelayMs = 10000,
+    backoffFactor = 2,
+    shouldRetry = () => true,
+  } = options;
+
+  let attempt = 0;
+  let delay = initialDelayMs;
+
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+
+      if (attempt > maxRetries || !shouldRetry(error)) {
+        throw error;
+      }
+
+      // Exponential backoff with full jitter to avoid RPC thundering herd issues
+      const currentMax = Math.min(delay, maxDelayMs);
+      const jitteredDelay = Math.floor(Math.random() * currentMax);
+
+      await new Promise((resolve) => setTimeout(resolve, jitteredDelay));
+      delay *= backoffFactor;
+    }
+  }
+}
