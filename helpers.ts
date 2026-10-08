@@ -1,34 +1,40 @@
-import { BigNumber } from 'ethers';
+interface CryptoPrice {
+  symbol: string;
+  price: number;
+  timestamp: number;
+}
 
 /**
- * Formats a raw crypto balance to a human-readable string
+ * Formats raw asset data for frontend display
+ * Normalizes numeric values and adds validation timestamps
  */
-export const formatUnits = (value: string | BigNumber, decimals: number = 18): string => {
-  const bn = BigNumber.from(value);
-  const divisor = BigNumber.from(10).pow(decimals);
-  return (bn.div(divisor)).toString() + '.' + (bn.mod(divisor)).toString().padStart(decimals, '0').slice(0, 4);
+export const formatAssetData = (raw: any): CryptoPrice => {
+  if (!raw || typeof raw.price !== 'number') {
+    throw new Error('Invalid crypto data payload provided');
+  }
+
+  return {
+    symbol: String(raw.symbol).toUpperCase(),
+    price: parseFloat(raw.price.toFixed(8)),
+    timestamp: Date.now()
+  };
 };
 
 /**
- * Validates standard crypto addresses
+ * Calculates percentage change between two price points
+ * Returns 0 if current price is unavailable
  */
-export const isValidAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
+export const calculateChange = (current: number, previous: number): number => {
+  if (previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
 };
 
 /**
- * Calculates slippage impact for trading operations
+ * Sanitizes crypto pair strings to ensure consistent formatting
+ * e.g., 'btc-usd' -> 'BTC/USD'
  */
-export const calculateSlippage = (amountIn: string, expectedOut: string, actualOut: string): number => {
-  const expected = parseFloat(expectedOut);
-  const actual = parseFloat(actualOut);
-  if (expected === 0) return 0;
-  return ((expected - actual) / expected) * 100;
+export const sanitizePair = (pair: string): string => {
+  return pair.replace(/[-_]/, '/').toUpperCase();
 };
 
-/**
- * Delays execution for rate-limited RPC calls
- */
-export const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
+export type { CryptoPrice };
