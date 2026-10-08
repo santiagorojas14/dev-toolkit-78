@@ -1,61 +1,39 @@
-export interface TokenPrice {
-  symbol: string;
-  priceUsd: number;
-  timestamp: number;
+interface TransactionData {
+  id: string;
+  amount: number;
+  currency: string;
 }
 
-export class CryptoPriceService {
-  private cache: Map<string, TokenPrice> = new Map();
-  private ttlMs: number;
+/**
+ * Validates incoming crypto transactions before processing.
+ */
+function isValidTransaction(data: unknown): data is TransactionData {
+  if (!data || typeof data !== 'object') return false;
+  const tx = data as any;
+  return (
+    typeof tx.id === 'string' &&
+    typeof tx.amount === 'number' &&
+    tx.amount > 0 &&
+    typeof tx.currency === 'string' &&
+    tx.currency.length >= 3
+  );
+}
 
-  constructor(ttlSeconds: number = 60) {
-    this.ttlMs = ttlSeconds * 1000;
-  }
-
-  /**
-   * Retrieves cached price or fetches fresh data if expired.
-   */
-  public async getPrice(symbol: string, fetcher: (sym: string) => Promise<number>): Promise<TokenPrice> {
-    const uppercaseSymbol = symbol.toUpperCase();
-    const cached = this.cache.get(uppercaseSymbol);
-    const now = Date.now();
-
-    if (cached && (now - cached.timestamp < this.ttlMs)) {
-      return cached;
+/**
+ * Main processing loop for dev-toolkit-78.
+ */
+export function processTransactionStream(stream: unknown[]): void {
+  for (const item of stream) {
+    if (!isValidTransaction(item)) {
+      console.error('Invalid transaction schema detected, skipping index');
+      continue;
     }
 
-    const priceUsd = await fetcher(uppercaseSymbol);
-    const entry: TokenPrice = {
-      symbol: uppercaseSymbol,
-      priceUsd,
-      timestamp: now,
-    };
-
-    this.cache.set(uppercaseSymbol, entry);
-    return entry;
-  }
-
-  /**
-   * Purges stale entries from internal memory cache.
-   */
-  public purgeStaleCache(): number {
-    const now = Date.now();
-    let purgedCount = 0;
-
-    for (const [symbol, entry] of this.cache.entries()) {
-      if (now - entry.timestamp >= this.ttlMs) {
-        this.cache.delete(symbol);
-        purgedCount++;
-      }
+    try {
+      console.log(`Processing tx: ${item.id} for ${item.amount} ${item.currency}`);
+      // Additional processing logic for crypto assets
+    } catch (err) {
+      console.error('System failure during crypto transaction execution', err);
     }
-
-    return purgedCount;
-  }
-
-  /**
-   * Resets all cached token price data.
-   */
-  public clearAll(): void {
-    this.cache.clear();
   }
 }
