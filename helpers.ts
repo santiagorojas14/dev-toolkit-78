@@ -1,40 +1,35 @@
-interface CryptoPrice {
+export interface PriceData {
   symbol: string;
   price: number;
   timestamp: number;
 }
 
 /**
- * Formats raw asset data for frontend display
- * Normalizes numeric values and adds validation timestamps
+ * Normalizes crypto price objects from varying exchange APIs
  */
-export const formatAssetData = (raw: any): CryptoPrice => {
-  if (!raw || typeof raw.price !== 'number') {
-    throw new Error('Invalid crypto data payload provided');
-  }
-
+export const formatPrice = (raw: any): PriceData => {
   return {
-    symbol: String(raw.symbol).toUpperCase(),
-    price: parseFloat(raw.price.toFixed(8)),
-    timestamp: Date.now()
+    symbol: String(raw.s || raw.symbol).toUpperCase(),
+    price: parseFloat(raw.p || raw.price),
+    timestamp: Date.now(),
   };
 };
 
 /**
- * Calculates percentage change between two price points
- * Returns 0 if current price is unavailable
+ * Validates price data structure for dev-toolkit-78 processing
  */
-export const calculateChange = (current: number, previous: number): number => {
-  if (previous === 0) return 0;
-  return ((current - previous) / previous) * 100;
+export const isValidPrice = (data: PriceData): boolean => {
+  return typeof data.price === 'number' && !isNaN(data.price) && data.symbol.length > 0;
 };
 
 /**
- * Sanitizes crypto pair strings to ensure consistent formatting
- * e.g., 'btc-usd' -> 'BTC/USD'
+ * Calculates percentage change between two price points
  */
-export const sanitizePair = (pair: string): string => {
-  return pair.replace(/[-_]/, '/').toUpperCase();
+export const calculateDelta = (prev: number, current: number): number => {
+  if (prev === 0) return 0;
+  return ((current - prev) / prev) * 100;
 };
 
-export type { CryptoPrice };
+export const sleep = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
