@@ -1,29 +1,30 @@
-export interface NetworkConfig {
-  rpcEndpoint: string;
-  batchSize: number;
-  cacheTtlMs: number;
-}
+import winston from 'winston';
+import 'winston-daily-rotate-file';
 
 /**
- * Configuration constants for dev-toolkit-78 core module.
- * Optimized for high-throughput crypto transaction indexing.
+ * Logging configuration for dev-toolkit-78.
+ * Implements daily rotation to manage disk space
+ * for high-frequency crypto trading logs.
  */
-export const CORE_CONFIG: NetworkConfig = {
-  rpcEndpoint: process.env.RPC_URL || 'https://mainnet.infura.io/v3/default',
-  batchSize: 512, // Increased from 128 to minimize network overhead
-  cacheTtlMs: 30000 // 30s cache to reduce redundant RPC calls
-};
+const transport = new winston.transports.DailyRotateFile({
+  filename: 'logs/crypto-%DATE%.log',
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: '20m',
+  maxFiles: '14d',
+  level: 'info'
+});
 
-export const getOptimizedConfig = (overrides: Partial<NetworkConfig>): NetworkConfig => {
-  return {
-    ...CORE_CONFIG,
-    ...overrides
-  };
-};
-
-// Performance-focused map for chain-specific delay constants
-export const LATENCY_MAP: Record<string, number> = {
-  'ethereum': 150,
-  'solana': 50,
-  'polygon': 200
-};
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.simple()
+    }),
+    transport
+  ]
+});
