@@ -1,43 +1,38 @@
-interface CryptoPrice {
+export interface PriceData {
   symbol: string;
-  priceUsd: number;
+  price: number;
   timestamp: number;
 }
 
 /**
- * Normalizes raw API response into standard application format
+ * Normalizes raw crypto API response into a standard format
  */
-export const formatPriceData = (data: any): CryptoPrice => {
-  if (!data?.s || typeof data.p !== 'string') {
-    throw new Error('Invalid crypto payload structure');
+export const formatPriceData = (raw: any): PriceData => {
+  if (!raw?.s || !raw?.p) {
+    throw new Error('Invalid crypto price payload structure');
   }
 
   return {
-    symbol: String(data.s).toUpperCase(),
-    priceUsd: parseFloat(data.p),
-    timestamp: Date.now(),
+    symbol: String(raw.s),
+    price: parseFloat(raw.p),
+    timestamp: raw.t || Date.now(),
   };
 };
 
 /**
- * Calculates percentage change between two values
+ * Safely calculates percentage change between two values
  */
-export const calculateDelta = (current: number, previous: number): number => {
+export const calculateChange = (current: number, previous: number): number => {
   if (previous === 0) return 0;
   return ((current - previous) / previous) * 100;
 };
 
 /**
- * Sanitizes numeric values to fixed decimal precision
+ * Rounds crypto values for cleaner UI display
  */
-export const formatPrecision = (value: number, decimals: number = 2): string => {
-  return value.toFixed(decimals);
-};
-
-/**
- * Validates common crypto ticker patterns
- */
-export const isValidTicker = (ticker: string): boolean => {
-  const pattern = /^[A-Z0-9]{2,10}$/;
-  return pattern.test(ticker);
+export const formatCurrency = (amount: number, decimals: number = 2): string => {
+  return amount.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 };
