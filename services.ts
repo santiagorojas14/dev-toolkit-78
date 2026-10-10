@@ -1,39 +1,73 @@
-interface TransactionData {
-  id: string;
-  amount: number;
-  currency: string;
+interface WalletBalance {
+  address: string;
+  balanceWei: bigint;
+  formattedBalance: string;
+  symbol: string;
+}
+
+interface RPCResponse<T> {
+  jsonrpc: string;
+  id: number;
+  result?: T;
+  error?: {
+    code: number;
+    message: string;
+  };
 }
 
 /**
- * Validates incoming crypto transactions before processing.
+ * Service for interacting with EVM-compatible blockchain nodes.
  */
-function isValidTransaction(data: unknown): data is TransactionData {
-  if (!data || typeof data !== 'object') return false;
-  const tx = data as any;
-  return (
-    typeof tx.id === 'string' &&
-    typeof tx.amount === 'number' &&
-    tx.amount > 0 &&
-    typeof tx.currency === 'string' &&
-    tx.currency.length >= 3
-  );
-}
+export class CryptoRpcService {
+  private readonly rpcUrl: string;
 
-/**
- * Main processing loop for dev-toolkit-78.
- */
-export function processTransactionStream(stream: unknown[]): void {
-  for (const item of stream) {
-    if (!isValidTransaction(item)) {
-      console.error('Invalid transaction schema detected, skipping index');
-      continue;
+  /**
+   * Initializes the RPC service with a target node URL.
+   * @param rpcUrl The HTTP endpoint of the RPC provider.
+   */
+  constructor(rpcUrl: string) {
+    this.rpcUrl = rpcUrl;
+  }
+
+  /**
+   * Fetches the native token balance for a given wallet address.
+   * @param address The hex-encoded public address of the wallet.
+   * @param symbol Symbol for formatted display (default: 'ETH').
+   * @returns Detailed wallet balance information.
+   */
+  public async getBalance(address: string, symbol: string = 'ETH'): Promise<WalletBalance> {
+    const payload = {
+      jsonrpc: '2.0',
+      method: 'eth_getBalance',
+      params: [address, 'latest'],
+      id: Date.now(),
+    };
+
+    const response = await fetch(this.rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`RPC request failed with status ${response.status}`);
     }
 
-    try {
-      console.log(`Processing tx: ${item.id} for ${item.amount} ${item.currency}`);
-      // Additional processing logic for crypto assets
-    } catch (err) {
-      console.error('System failure during crypto transaction execution', err);
+    const data: RPCResponse<string> = await response.json();
+
+    if (data.error) {
+      throw new Error(`RPC Error (${data.error.code}): ${data.error.message}`);
     }
+
+    const hexBalance = data.result ?? '0x0';
+    const balanceWei = BigInt(hexBalance);
+    const balanceFormatted = (Number(balanceWei) / 1e18).toFixed(4);
+
+    return {
+      address,
+      balanceWei,
+      formattedBalance: balanceFormatted,
+      symbol,
+    };
   }
 }
