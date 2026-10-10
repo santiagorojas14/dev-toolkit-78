@@ -1,33 +1,26 @@
-export class CryptoError extends Error {
-  constructor(public message: string, public code: string, public retryable: boolean = false) {
-    super(message);
-    this.name = 'CryptoError';
-  }
-}
-
-export const handleTransactionError = (error: unknown): void => {
-  if (error instanceof CryptoError) {
-    if (error.retryable) {
-      console.warn(`[dev-toolkit-78] Retryable error encountered: ${error.message}`);
-      return;
-    }
-    console.error(`[dev-toolkit-78] Critical error [${error.code}]: ${error.message}`);
-    throw error;
-  }
-
-  if (error instanceof Error) {
-    console.error(`[dev-toolkit-78] Unexpected system error: ${error.message}`);
-  } else {
-    console.error('[dev-toolkit-78] Unknown non-error object thrown');
-  }
-
-  throw new Error('Transaction execution aborted due to unexpected failure');
+export const formatUnits = (value: bigint, decimals: number): string => {
+  const divisor = 10n ** BigInt(decimals);
+  const integer = value / divisor;
+  const fractional = value % divisor;
+  const paddedFractional = fractional.toString().padStart(decimals, '0');
+  return `${integer}.${paddedFractional}`;
 };
 
-export const validateWalletAddress = (address: string): boolean => {
-  const pattern = /^0x[a-fA-F0-9]{40}$/;
-  if (!pattern.test(address)) {
-    throw new CryptoError('Invalid wallet format', 'INVALID_ADDRESS', false);
-  }
-  return true;
+export const delay = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+export const calculateSlippage = (expected: bigint, actual: bigint): number => {
+  const diff = expected > actual ? expected - actual : actual - expected;
+  return Number((diff * 10000n) / expected) / 100;
+};
+
+export const isValidAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
+export const parseCryptoAmount = (amount: string, decimals: number): bigint => {
+  const [integer, fractional] = amount.split('.');
+  const normalizedFraction = (fractional || '').padEnd(decimals, '0').slice(0, decimals);
+  return BigInt(`${integer}${normalizedFraction}`);
 };
