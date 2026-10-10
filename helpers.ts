@@ -1,41 +1,43 @@
-import { ethers } from 'ethers';
+interface CryptoPrice {
+  symbol: string;
+  priceUsd: number;
+  timestamp: number;
+}
 
 /**
- * Format raw crypto balances from Wei to Ether units
+ * Normalizes raw API response into standard application format
  */
-export const formatBalance = (balance: bigint, decimals: number = 18): string => {
-  return ethers.formatUnits(balance, decimals);
-};
-
-/**
- * Validates checksum of a crypto wallet address
- */
-export const isValidAddress = (address: string): boolean => {
-  return ethers.isAddress(address);
-};
-
-/**
- * Converts numeric amounts to BigInt for contract interactions
- */
-export const parseAmount = (amount: string, decimals: number = 18): bigint => {
-  try {
-    return ethers.parseUnits(amount, decimals);
-  } catch (error) {
-    return 0n;
+export const formatPriceData = (data: any): CryptoPrice => {
+  if (!data?.s || typeof data.p !== 'string') {
+    throw new Error('Invalid crypto payload structure');
   }
+
+  return {
+    symbol: String(data.s).toUpperCase(),
+    priceUsd: parseFloat(data.p),
+    timestamp: Date.now(),
+  };
 };
 
 /**
- * Sleep helper for rate-limited RPC requests
+ * Calculates percentage change between two values
  */
-export const delay = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export const calculateDelta = (current: number, previous: number): number => {
+  if (previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
 };
 
 /**
- * Truncates address for display purposes (e.g. 0x123...abc)
+ * Sanitizes numeric values to fixed decimal precision
  */
-export const truncateAddress = (address: string): string => {
-  if (address.length < 10) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+export const formatPrecision = (value: number, decimals: number = 2): string => {
+  return value.toFixed(decimals);
+};
+
+/**
+ * Validates common crypto ticker patterns
+ */
+export const isValidTicker = (ticker: string): boolean => {
+  const pattern = /^[A-Z0-9]{2,10}$/;
+  return pattern.test(ticker);
 };
