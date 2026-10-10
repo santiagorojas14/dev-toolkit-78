@@ -1,39 +1,29 @@
-export interface CryptoConfig {
-  network: 'mainnet' | 'testnet' | 'localhost';
-  rpcUrl: string;
-  gasLimitDefault: number;
-  retryAttempts: number;
-  enableCache: boolean;
+export interface NetworkConfig {
+  rpcEndpoint: string;
+  batchSize: number;
+  cacheTtlMs: number;
 }
-
-const DEFAULT_CONFIG: CryptoConfig = {
-  network: 'mainnet',
-  rpcUrl: 'https://eth.llamarpc.com',
-  gasLimitDefault: 21000,
-  retryAttempts: 3,
-  enableCache: true,
-};
 
 /**
- * Loads and validates configuration variables for decentralized operations
- * Merges user-defined environment settings with standard safe fallbacks
+ * Configuration constants for dev-toolkit-78 core module.
+ * Optimized for high-throughput crypto transaction indexing.
  */
-export function loadConfig(env: Record<string, string | undefined> = {}): CryptoConfig {
-  const network = (env.CRYPTO_NETWORK || DEFAULT_CONFIG.network) as CryptoConfig['network'];
-  
-  const rawGasLimit = env.CRYPTO_GAS_LIMIT 
-    ? parseInt(env.CRYPTO_GAS_LIMIT, 10) 
-    : DEFAULT_CONFIG.gasLimitDefault;
+export const CORE_CONFIG: NetworkConfig = {
+  rpcEndpoint: process.env.RPC_URL || 'https://mainnet.infura.io/v3/default',
+  batchSize: 512, // Increased from 128 to minimize network overhead
+  cacheTtlMs: 30000 // 30s cache to reduce redundant RPC calls
+};
 
-  const rawRetries = env.CRYPTO_RETRY_ATTEMPTS 
-    ? parseInt(env.CRYPTO_RETRY_ATTEMPTS, 10) 
-    : DEFAULT_CONFIG.retryAttempts;
-
+export const getOptimizedConfig = (overrides: Partial<NetworkConfig>): NetworkConfig => {
   return {
-    network: ['mainnet', 'testnet', 'localhost'].includes(network) ? network : DEFAULT_CONFIG.network,
-    rpcUrl: env.CRYPTO_RPC_URL || DEFAULT_CONFIG.rpcUrl,
-    gasLimitDefault: isNaN(rawGasLimit) ? DEFAULT_CONFIG.gasLimitDefault : rawGasLimit,
-    retryAttempts: isNaN(rawRetries) ? DEFAULT_CONFIG.retryAttempts : rawRetries,
-    enableCache: env.CRYPTO_ENABLE_CACHE !== 'false',
+    ...CORE_CONFIG,
+    ...overrides
   };
-}
+};
+
+// Performance-focused map for chain-specific delay constants
+export const LATENCY_MAP: Record<string, number> = {
+  'ethereum': 150,
+  'solana': 50,
+  'polygon': 200
+};
