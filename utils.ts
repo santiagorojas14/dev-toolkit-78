@@ -1,46 +1,85 @@
-export interface PricePoint {
-  timestamp: number;
-  value: number;
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface LoggerConfig {
+  logDir: string;
+  maxSizeBytes: number;
+  maxFiles: number;
+  prefix?: string;
 }
 
-/**
- * Optimized lookup for high-frequency price data
- * uses a simple binary search to minimize overhead
- */
-export const findClosestTimestamp = (
-  data: PricePoint[],
-  target: number
-): PricePoint | null => {
-  if (data.length === 0) return null;
+export class RotatingLogger {
+  private currentFile: string;
+  private currentSize: number = 0;
+  private stream: fs.WriteStream | null = null;
+  private prefix: string;
 
-  let left = 0;
-  let right = data.length - 1;
-
-  while (left <= right) {
-    const mid = Math.floor((left + right) / 2);
-    if (data[mid].timestamp === target) return data[mid];
-    if (data[mid].timestamp < target) left = mid + 1;
-    else right = mid - 1;
+  constructor(private config: LoggerConfig) {
+    this.prefix = config.prefix || 'crypto-toolkit';
+    if (!fs.existsSync(config.logDir)) {
+      fs.mkdirSync(config.logDir, { recursive: true });
+    }
+    this.currentFile = path.join(config.logDir, `${this.prefix}-active.log`);
+    this.initStream();
   }
 
-  const prev = data[right] ?? data[0];
-  const next = data[left] ?? data[data.length - 1];
+  private initStream(): void {
+    if (fs.existsSync(this.currentFile)) {
+      const stats = fs.statSync(this.currentFile);
+      this.currentSize = stats.size;
+    } else {
+      this.currentSize = 0;
+    }
+    this.stream = fs.createWriteStream(this.currentFile, { flags: 'a' });
+  }
 
-  return Math.abs(target - prev.timestamp) < Math.abs(target - next.timestamp)
-    ? prev
-    : next;
-};
+  private rotate(): void {
+    if (this.stream) {
+      this.stream.end();
+    }
 
-/**
- * Memoized calculation wrapper for expensive crypto math
- */
-export const createMemoizedCalculator = <T, R>(fn: (arg: T) => R) => {
-  const cache = new Map<string, R>();
-  return (arg: T): R => {
-    const key = JSON.stringify(arg);
-    if (cache.has(key)) return cache.get(key)!;
-    const result = fn(arg);
-    cache.set(key, result);
-    return result;
-  };
-};
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const archivedPath = path.join(this.config.logDir, `${this.prefix}-${timestamp}.log`);
+
+    if (fs.existsSync(this.currentFile)) {
+      fs.renameSync(this.currentFile, archivedPath);
+    }
+
+    this.pruneOldLogs();
+    this.initStream();
+  }
+
+  private pruneOldLogs(): void {
+    const files = fs.readdirSync(this.config.logDir)
+      .filter(file => file.startsWith(this.prefix) && file.endsWith('.log'))
+      .map(file => path.join(this.config.logDir, file))
+      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+
+    if (files.length > this.config.maxFiles) {
+      files.slice(this.config.maxFiles).forEach(file => {
+        if (fs.existsSync(file)) {
+          fs.unlinkSync(file);
+        }
+      });
+    }
+  }
+
+  public log(level: 'INFO' | 'WARN' | 'ERROR', message: string, meta?: Record<string, unknown>): void {
+    const entry = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      ...meta,
+    }) + '\n';
+
+    const entrySize = Buffer.byteLength(entry, 'utf8');
+    if (this.currentSize + entrySize >= this.config.maxSizeBytes) {
+      this.rotate();
+    }
+
+    if (this.stream) {
+      this.stream.write(entry);
+      this.currentSize += entrySize;
+    }
+  }
+}
