@@ -1,58 +1,46 @@
-/**
- * Truncates a crypto address (e.g., Ethereum, Solana) for UI display.
- * @param address The full wallet address
- * @param startLength Number of characters to keep at the start (default: 6)
- * @param endLength Number of characters to keep at the end (default: 4)
- */
-export function truncateAddress(
-  address: string,
-  startLength = 6,
-  endLength = 4
-): string { 
-  if (!address) return "";
-  if (address.length <= startLength + endLength) return address;
-  return `${address.slice(0, startLength)}...${address.slice(-endLength)}`;
+export interface PricePoint {
+  timestamp: number;
+  value: number;
 }
 
 /**
- * Formats a raw bigint token/gas balance to a human-readable decimal string.
- * @param balance The raw balance as a BigInt (e.g., in wei)
- * @param decimals The decimal places of the token (default: 18 for ETH)
- * @param displayDecimals The maximum decimal places to show in the output (default: 4)
+ * Optimized lookup for high-frequency price data
+ * uses a simple binary search to minimize overhead
  */
-export function formatUnits(
-  balance: bigint | string,
-  decimals = 18,
-  displayDecimals = 4
-): string {
-  const balanceBI = typeof balance === "string" ? BigInt(balance) : balance;
-  const base = 10n ** BigInt(decimals);
-  const integerPart = balanceBI / base;
-  const fractionalPart = balanceBI % base;
+export const findClosestTimestamp = (
+  data: PricePoint[],
+  target: number
+): PricePoint | null => {
+  if (data.length === 0) return null;
 
-  if (fractionalPart === 0n) {
-    return integerPart.toString();
+  let left = 0;
+  let right = data.length - 1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (data[mid].timestamp === target) return data[mid];
+    if (data[mid].timestamp < target) left = mid + 1;
+    else right = mid - 1;
   }
 
-  let fractionStr = fractionalPart.toString().padStart(decimals, "0");
-  // Trim trailing zeros
-  fractionStr = fractionStr.replace(/0+$/, "");
+  const prev = data[right] ?? data[0];
+  const next = data[left] ?? data[data.length - 1];
 
-  if (fractionStr.length > displayDecimals) {
-    fractionStr = fractionStr.slice(0, displayDecimals);
-  }
-
-  return fractionStr.length > 0 ? `${integerPart}.${fractionStr}` : integerPart.toString();
-}
+  return Math.abs(target - prev.timestamp) < Math.abs(target - next.timestamp)
+    ? prev
+    : next;
+};
 
 /**
- * Converts a human-readable decimal string representation of a token value to its BigInt unit.
- * @param value The human-readable string (e.g., "1.5")
- * @param decimals The decimal places of the token (default: 18)
+ * Memoized calculation wrapper for expensive crypto math
  */
-export function parseUnits(value: string, decimals = 18): bigint {
-  const [integer, fraction = ""] = value.split(".");
-  const safeFraction = fraction.slice(0, decimals).padEnd(decimals, "0");
-  const merged = `${integer}${safeFraction}`;
-  return BigInt(merged);
-}
+export const createMemoizedCalculator = <T, R>(fn: (arg: T) => R) => {
+  const cache = new Map<string, R>();
+  return (arg: T): R => {
+    const key = JSON.stringify(arg);
+    if (cache.has(key)) return cache.get(key)!;
+    const result = fn(arg);
+    cache.set(key, result);
+    return result;
+  };
+};
