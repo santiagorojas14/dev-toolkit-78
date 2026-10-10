@@ -1,35 +1,41 @@
-export interface PriceData {
-  symbol: string;
-  price: number;
-  timestamp: number;
-}
+import { ethers } from 'ethers';
 
 /**
- * Normalizes crypto price objects from varying exchange APIs
+ * Format raw crypto balances from Wei to Ether units
  */
-export const formatPrice = (raw: any): PriceData => {
-  return {
-    symbol: String(raw.s || raw.symbol).toUpperCase(),
-    price: parseFloat(raw.p || raw.price),
-    timestamp: Date.now(),
-  };
+export const formatBalance = (balance: bigint, decimals: number = 18): string => {
+  return ethers.formatUnits(balance, decimals);
 };
 
 /**
- * Validates price data structure for dev-toolkit-78 processing
+ * Validates checksum of a crypto wallet address
  */
-export const isValidPrice = (data: PriceData): boolean => {
-  return typeof data.price === 'number' && !isNaN(data.price) && data.symbol.length > 0;
+export const isValidAddress = (address: string): boolean => {
+  return ethers.isAddress(address);
 };
 
 /**
- * Calculates percentage change between two price points
+ * Converts numeric amounts to BigInt for contract interactions
  */
-export const calculateDelta = (prev: number, current: number): number => {
-  if (prev === 0) return 0;
-  return ((current - prev) / prev) * 100;
+export const parseAmount = (amount: string, decimals: number = 18): bigint => {
+  try {
+    return ethers.parseUnits(amount, decimals);
+  } catch (error) {
+    return 0n;
+  }
 };
 
-export const sleep = (ms: number): Promise<void> => {
+/**
+ * Sleep helper for rate-limited RPC requests
+ */
+export const delay = (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+/**
+ * Truncates address for display purposes (e.g. 0x123...abc)
+ */
+export const truncateAddress = (address: string): string => {
+  if (address.length < 10) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
