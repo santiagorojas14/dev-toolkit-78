@@ -1,85 +1,45 @@
-import * as fs from 'fs';
-import * as path from 'path';
-
-export interface LoggerConfig {
-  logDir: string;
-  maxSizeBytes: number;
-  maxFiles: number;
-  prefix?: string;
+export interface RetryOptions {
+  maxRetries?: number;
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+  backoffFactor?: number;
+  retryOn?: (error: unknown) => boolean;
 }
 
-export class RotatingLogger {
-  private currentFile: string;
-  private currentSize: number = 0;
-  private stream: fs.WriteStream | null = null;
-  private prefix: string;
+/**
+ * Retries an asynchronous network operation with exponential backoff.
+ * Designed for handling transient RPC node rate limits and network glitches.
+ */
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const {
+    maxRetries = 3,
+    initialDelayMs = 500,
+    maxDelayMs = 10000,
+    backoffFactor = 2,
+    retryOn = () => true,
+  } = options;
 
-  constructor(private config: LoggerConfig) {
-    this.prefix = config.prefix || 'crypto-toolkit';
-    if (!fs.existsSync(config.logDir)) {
-      fs.mkdirSync(config.logDir, { recursive: true });
-    }
-    this.currentFile = path.join(config.logDir, `${this.prefix}-active.log`);
-    this.initStream();
-  }
+  let attempt = 0;
+  let delay = initialDelayMs;
 
-  private initStream(): void {
-    if (fs.existsSync(this.currentFile)) {
-      const stats = fs.statSync(this.currentFile);
-      this.currentSize = stats.size;
-    } else {
-      this.currentSize = 0;
-    }
-    this.stream = fs.createWriteStream(this.currentFile, { flags: 'a' });
-  }
+  while (true) {
+    try {
+      return await operation();
+    } catch (error) {
+      attempt++;
+      if (attempt > maxRetries || !retryOn(error)) {
+        throw error;
+      }
 
-  private rotate(): void {
-    if (this.stream) {
-      this.stream.end();
-    }
+      // Calculate jittered delay to mitigate thundering herd on crypto endpoints
+      const jitter = Math.random() * 0.2 + 0.9;
+      const actualDelay = Math.min(delay * jitter, maxDelayMs);
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const archivedPath = path.join(this.config.logDir, `${this.prefix}-${timestamp}.log`);
-
-    if (fs.existsSync(this.currentFile)) {
-      fs.renameSync(this.currentFile, archivedPath);
-    }
-
-    this.pruneOldLogs();
-    this.initStream();
-  }
-
-  private pruneOldLogs(): void {
-    const files = fs.readdirSync(this.config.logDir)
-      .filter(file => file.startsWith(this.prefix) && file.endsWith('.log'))
-      .map(file => path.join(this.config.logDir, file))
-      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-
-    if (files.length > this.config.maxFiles) {
-      files.slice(this.config.maxFiles).forEach(file => {
-        if (fs.existsSync(file)) {
-          fs.unlinkSync(file);
-        }
-      });
-    }
-  }
-
-  public log(level: 'INFO' | 'WARN' | 'ERROR', message: string, meta?: Record<string, unknown>): void {
-    const entry = JSON.stringify({
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      ...meta,
-    }) + '\n';
-
-    const entrySize = Buffer.byteLength(entry, 'utf8');
-    if (this.currentSize + entrySize >= this.config.maxSizeBytes) {
-      this.rotate();
-    }
-
-    if (this.stream) {
-      this.stream.write(entry);
-      this.currentSize += entrySize;
+      await new Promise((resolve) => setTimeout(resolve, actualDelay));
+      delay *= backoffFactor;
     }
   }
 }
