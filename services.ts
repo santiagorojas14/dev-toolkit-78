@@ -1,39 +1,34 @@
-import { ethers } from 'ethers';
+import { LRUCache } from 'lru-cache';
+
+interface CryptoQuote {
+  price: string;
+  timestamp: number;
+}
+
+// Cache instance for expensive price lookups
+const priceCache = new LRUCache<string, CryptoQuote>({
+  max: 500,
+  ttl: 1000 * 30, // 30 seconds expiry
+});
 
 /**
- * format wei to ether units for ui display
+ * Fetches asset price with memoization to reduce API calls
  */
-export const formatBalance = (balance: bigint, decimals: number = 18): string => {
-  return ethers.formatUnits(balance, decimals);
+export const getCachedPrice = async (symbol: string): Promise<CryptoQuote> => {
+  const cached = priceCache.get(symbol);
+  if (cached) return cached;
+
+  // Simulated network latency for crypto oracle lookup
+  const response = await fetch(`https://api.dex-data.io/v1/price/${symbol}`);
+  const data: CryptoQuote = await response.json();
+
+  priceCache.set(symbol, data);
+  return data;
 };
 
 /**
- * calculate fee with slippage buffer for tx
+ * Bulk processing for high-frequency trading data
  */
-export const calculateSlippageAmount = (amount: bigint, slippagePercent: number): bigint => {
-  const basisPoints = BigInt(Math.floor(slippagePercent * 100));
-  return (amount * (10000n - basisPoints)) / 10000n;
-};
-
-/**
- * validate checksum address format
- */
-export const isValidAddress = (address: string): boolean => {
-  return ethers.isAddress(address);
-};
-
-/**
- * sleep utility for rate limiting requests
- */
-export const delay = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-/**
- * parse transaction error messages for logging
- */
-export const parseTxError = (error: any): string => {
-  if (error.reason) return error.reason;
-  if (error.message) return error.message;
-  return 'unknown transaction execution error';
+export const processMarketUpdates = (updates: CryptoQuote[]): number => {
+  return updates.reduce((acc, curr) => acc + parseFloat(curr.price), 0) / updates.length;
 };
