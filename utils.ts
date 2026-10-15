@@ -1,35 +1,36 @@
-export interface RetryOptions {
-  retries: number;
-  delay: number;
-}
+import winston from 'winston';
+import 'winston-daily-rotate-file';
 
 /**
- * executes an async operation with exponential backoff
+ * Configuration for crypto service logging system
+ * Retains logs for 14 days with compression enabled
  */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = { retries: 3, delay: 1000 }
-): Promise<T> {
-  let lastError: Error | unknown;
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.DailyRotateFile({
+      filename: 'logs/dev-toolkit-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d',
+    }),
+    new winston.transports.Console({
+      format: winston.format.simple(),
+    }),
+  ],
+});
 
-  for (let attempt = 0; attempt <= options.retries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (attempt < options.retries) {
-        const backoff = options.delay * Math.pow(2, attempt);
-        await new Promise((resolve) => setTimeout(resolve, backoff));
-      }
-    }
-  }
-
-  throw lastError;
+export interface LogMetadata {
+  asset?: string;
+  txHash?: string;
+  status: 'success' | 'failure' | 'pending';
 }
 
-/**
- * validates if a transaction hash meets crypto network specs
- */
-export const isValidHash = (hash: string): boolean => {
-  return /^0x[a-fA-F0-9]{64}$/.test(hash);
+export const logTransaction = (msg: string, meta: LogMetadata) => {
+  logger.info(msg, meta);
 };
