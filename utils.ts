@@ -1,36 +1,40 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
-
-/**
- * Configuration for crypto service logging system
- * Retains logs for 14 days with compression enabled
- */
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.DailyRotateFile({
-      filename: 'logs/dev-toolkit-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d',
-    }),
-    new winston.transports.Console({
-      format: winston.format.simple(),
-    }),
-  ],
-});
-
-export interface LogMetadata {
-  asset?: string;
-  txHash?: string;
-  status: 'success' | 'failure' | 'pending';
+export interface TransactionPayload {
+  id: string;
+  amount: number;
+  currency: string;
+  timestamp: number;
 }
 
-export const logTransaction = (msg: string, meta: LogMetadata) => {
-  logger.info(msg, meta);
-};
+/**
+ * Validates incoming crypto transaction payloads
+ * Ensures basic data integrity before processing
+ */
+export function validateTransaction(data: any): data is TransactionPayload {
+  if (!data || typeof data !== 'object') return false;
+  
+  const { id, amount, currency, timestamp } = data;
+
+  const isValidId = typeof id === 'string' && id.length > 0;
+  const isValidAmount = typeof amount === 'number' && amount > 0;
+  const isValidCurrency = typeof currency === 'string' && currency.length === 3;
+  const isValidTimestamp = typeof timestamp === 'number' && timestamp <= Date.now();
+
+  return isValidId && isValidAmount && isValidCurrency && isValidTimestamp;
+}
+
+/**
+ * Main processing loop wrapper for transaction stream
+ */
+export function processTransactionStream(stream: any[]): TransactionPayload[] {
+  const validTransactions: TransactionPayload[] = [];
+
+  for (const item of stream) {
+    if (validateTransaction(item)) {
+      validTransactions.push(item);
+    } else {
+      console.error(`Invalid transaction data received: ${JSON.stringify(item)}`);
+    }
+  }
+
+  return validTransactions;
+}
