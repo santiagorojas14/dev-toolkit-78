@@ -1,30 +1,28 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
+export interface AppConfig {
+  rpcUrl: string;
+  chainId: number;
+  retryAttempts: number;
+  timeoutMs: number;
+}
+
+const DEFAULT_CONFIG: AppConfig = {
+  rpcUrl: 'https://mainnet.infura.io/v3/default',
+  chainId: 1,
+  retryAttempts: 3,
+  timeoutMs: 5000,
+};
 
 /**
- * Logging configuration for dev-toolkit-78.
- * Implements daily rotation to manage disk space
- * for high-frequency crypto trading logs.
+ * Merges user-provided overrides with system defaults
+ * ensuring type safety for crypto-related constants
  */
-const transport = new winston.transports.DailyRotateFile({
-  filename: 'logs/crypto-%DATE%.log',
-  datePattern: 'YYYY-MM-DD',
-  zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '14d',
-  level: 'info'
-});
+export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+  return {
+    ...DEFAULT_CONFIG,
+    ...overrides,
+  };
+}
 
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.simple()
-    }),
-    transport
-  ]
-});
+// Usage example:
+// const config = loadConfig({ chainId: 137 });
+// console.log(`Initialized with chain: ${config.chainId}`);
