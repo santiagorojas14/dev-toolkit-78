@@ -1,35 +1,29 @@
-interface Transaction {
-  id: string;
-  amount: number;
-  asset: string;
-}
+import winston from 'winston';
+import 'winston-daily-rotate-file';
+import path from 'path';
 
-export const processCryptoBatch = (data: unknown): void => {
-  if (!Array.isArray(data)) {
-    throw new Error('invalid batch format: expected array');
-  }
+/**
+ * dev-toolkit-78 logger configuration for crypto operations
+ * rotation enabled to prevent disk bloat on validator nodes
+ */
+export const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      filename: path.join(__dirname, '../logs/crypto-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
 
-  for (const item of data) {
-    if (!isValidTransaction(item)) {
-      console.warn('skipping malformed transaction', item);
-      continue;
-    }
-
-    executeTrade(item);
-  }
-};
-
-const isValidTransaction = (tx: any): tx is Transaction => {
-  return (
-    typeof tx === 'object' &&
-    typeof tx.id === 'string' &&
-    typeof tx.amount === 'number' &&
-    tx.amount > 0 &&
-    typeof tx.asset === 'string' &&
-    tx.asset.length <= 5
-  );
-};
-
-const executeTrade = (tx: Transaction): void => {
-  console.log(`processing ${tx.asset} trade: ${tx.id}`);
+export const logTransaction = (hash: string, status: string) => {
+  logger.info('transaction_event', { hash, status, network: 'mainnet' });
 };
