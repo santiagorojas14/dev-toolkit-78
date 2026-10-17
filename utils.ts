@@ -1,40 +1,57 @@
-export interface TransactionPayload {
-  id: string;
-  amount: number;
-  currency: string;
-  timestamp: number;
+/**
+ * Utility functions for crypto transaction data formatting and validation.
+ */
+
+export interface FormattedCryptoAmount {
+  raw: string;
+  formatted: string;
+  symbol: string;
 }
 
 /**
- * Validates incoming crypto transaction payloads
- * Ensures basic data integrity before processing
+ * Truncates a crypto wallet address for UI display.
+ * Example: 0x1234567890abcdef1234567890abcdef12345678 -> 0x1234...5678
  */
-export function validateTransaction(data: any): data is TransactionPayload {
-  if (!data || typeof data !== 'object') return false;
-  
-  const { id, amount, currency, timestamp } = data;
-
-  const isValidId = typeof id === 'string' && id.length > 0;
-  const isValidAmount = typeof amount === 'number' && amount > 0;
-  const isValidCurrency = typeof currency === 'string' && currency.length === 3;
-  const isValidTimestamp = typeof timestamp === 'number' && timestamp <= Date.now();
-
-  return isValidId && isValidAmount && isValidCurrency && isValidTimestamp;
-}
-
-/**
- * Main processing loop wrapper for transaction stream
- */
-export function processTransactionStream(stream: any[]): TransactionPayload[] {
-  const validTransactions: TransactionPayload[] = [];
-
-  for (const item of stream) {
-    if (validateTransaction(item)) {
-      validTransactions.push(item);
-    } else {
-      console.error(`Invalid transaction data received: ${JSON.stringify(item)}`);
-    }
+export function truncateAddress(address: string, startChars = 6, endChars = 4): string {
+  if (!address || address.length <= startChars + endChars) {
+    return address;
   }
+  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
+}
 
-  return validTransactions;
+/**
+ * Converts atomic crypto units (e.g., Satoshis, Wei) to standard units (e.g., BTC, ETH).
+ */
+export function formatCryptoBalance(
+  amount: bigint | string | number,
+  decimals: number = 18,
+  symbol: string = 'ETH'
+): FormattedCryptoAmount {
+  const bigintAmount = typeof amount === 'bigint' ? amount : BigInt(amount.toString());
+  const divisor = BigInt(10 ** decimals);
+  
+  const integerPart = bigintAmount / divisor;
+  const remainderPart = bigintAmount % divisor;
+  
+  // Pad left with zeros to ensure full decimal precision length
+  const remainderStr = remainderPart.toString().padStart(decimals, '0');
+  // Trim trailing zeros for display
+  const trimmedDecimal = remainderStr.replace(/0+$/, '');
+  
+  const formattedValue = trimmedDecimal.length > 0 
+    ? `${integerPart.toString()}.${trimmedDecimal.slice(0, 6)}` 
+    : integerPart.toString();
+
+  return {
+    raw: bigintAmount.toString(),
+    formatted: `${formattedValue} ${symbol}`,
+    symbol,
+  };
+}
+
+/**
+ * Validates basic hex structure of an EVM wallet address.
+ */
+export function isValidEvmAddress(address: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
 }
