@@ -1,29 +1,38 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
-import path from 'path';
+export interface TransactionRequest {
+  asset: string;
+  amount: number;
+  recipient: string;
+}
 
-/**
- * dev-toolkit-78 logger configuration for crypto operations
- * rotation enabled to prevent disk bloat on validator nodes
- */
-export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.DailyRotateFile({
-      filename: path.join(__dirname, '../logs/crypto-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d'
-    })
-  ]
-});
+export const validateTransaction = (tx: unknown): TransactionRequest => {
+  if (typeof tx !== 'object' || tx === null) {
+    throw new Error('invalid payload format');
+  }
 
-export const logTransaction = (hash: string, status: string) => {
-  logger.info('transaction_event', { hash, status, network: 'mainnet' });
+  const { asset, amount, recipient } = tx as TransactionRequest;
+
+  if (typeof asset !== 'string' || asset.length < 3) {
+    throw new Error('invalid asset identifier');
+  }
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    throw new Error('invalid transaction amount');
+  }
+
+  if (typeof recipient !== 'string' || !recipient.startsWith('0x')) {
+    throw new Error('invalid recipient address');
+  }
+
+  return { asset, amount, recipient };
+};
+
+export const processMainLoop = (queue: unknown[]) => {
+  for (const item of queue) {
+    try {
+      const validTx = validateTransaction(item);
+      console.log(`processing ${validTx.asset} for ${validTx.amount}`);
+    } catch (err) {
+      console.error(`skipped invalid transaction: ${(err as Error).message}`);
+    }
+  }
 };
