@@ -1,57 +1,57 @@
-/**
- * Utility functions for crypto transaction data formatting and validation.
- */
-
-export interface FormattedCryptoAmount {
-  raw: string;
-  formatted: string;
-  symbol: string;
+export interface RetryOptions {
+  maxRetries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  backoffFactor?: number;
+  shouldRetry?: (error: unknown) => boolean;
 }
 
+const DEFAULT_OPTIONS: Required<RetryOptions> = {
+  maxRetries: 3,
+  baseDelayMs: 500,
+  maxDelayMs: 5000,
+  backoffFactor: 2,
+  shouldRetry: (error: unknown) => {
+    // Retry on standard transient network failures and rate limits
+    if (error instanceof Error) {
+      const msg = error.message.toLowerCase();
+      return msg.includes('429') || msg.includes('timeout') || msg.includes('network');
+    }
+    return true;
+  },
+};
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Truncates a crypto wallet address for UI display.
- * Example: 0x1234567890abcdef1234567890abcdef12345678 -> 0x1234...5678
+ * Executes an async operation with exponential backoff retry logic.
+ * Designed for resilient crypto RPC node requests and API queries.
  */
-export function truncateAddress(address: string, startChars = 6, endChars = 4): string {
-  if (!address || address.length <= startChars + endChars) {
-    return address;
+export async function retryOperation<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const config = { ...DEFAULT_OPTIONS, ...options };
+  let attempt = 0;
+  let currentDelay = config.baseDelayMs;
+
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+
+      if (attempt > config.maxRetries || !config.shouldRetry(error)) {
+        throw error;
+      }
+
+      // Apply jitter to prevent thundering herd on RPC nodes
+      const jitter = Math.floor(Math.random() * 100);
+      const delay = Math.min(currentDelay + jitter, config.maxDelayMs);
+
+      await sleep(delay);
+      currentDelay *= config.backoffFactor;
+    }
   }
-  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
-}
-
-/**
- * Converts atomic crypto units (e.g., Satoshis, Wei) to standard units (e.g., BTC, ETH).
- */
-export function formatCryptoBalance(
-  amount: bigint | string | number,
-  decimals: number = 18,
-  symbol: string = 'ETH'
-): FormattedCryptoAmount {
-  const bigintAmount = typeof amount === 'bigint' ? amount : BigInt(amount.toString());
-  const divisor = BigInt(10 ** decimals);
-  
-  const integerPart = bigintAmount / divisor;
-  const remainderPart = bigintAmount % divisor;
-  
-  // Pad left with zeros to ensure full decimal precision length
-  const remainderStr = remainderPart.toString().padStart(decimals, '0');
-  // Trim trailing zeros for display
-  const trimmedDecimal = remainderStr.replace(/0+$/, '');
-  
-  const formattedValue = trimmedDecimal.length > 0 
-    ? `${integerPart.toString()}.${trimmedDecimal.slice(0, 6)}` 
-    : integerPart.toString();
-
-  return {
-    raw: bigintAmount.toString(),
-    formatted: `${formattedValue} ${symbol}`,
-    symbol,
-  };
-}
-
-/**
- * Validates basic hex structure of an EVM wallet address.
- */
-export function isValidEvmAddress(address: string): boolean {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
 }
