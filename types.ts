@@ -1,47 +1,33 @@
-/**
- * Represents the core asset configuration for dev-toolkit-78
- */
-export interface CryptoAsset {
-  symbol: string;
-  decimals: number;
-  contractAddress: string | null;
-  isStablecoin: boolean;
+export enum CryptoErrorCode {
+  INVALID_ADDRESS = 'INVALID_ADDRESS',
+  INSUFFICIENT_FUNDS = 'INSUFFICIENT_FUNDS',
+  NETWORK_TIMEOUT = 'NETWORK_TIMEOUT',
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
 }
 
-/**
- * Standardized response for blockchain RPC calls
- */
-export interface RpcResponse<T> {
-  result: T;
-  error: string | null;
-  id: number;
-  timestamp: number;
+export interface CryptoError extends Error {
+  code: CryptoErrorCode;
+  details?: Record<string, unknown>;
+  retryable: boolean;
 }
 
-/**
- * Transaction metadata for cross-chain bridging
- */
-export interface BridgeTransaction {
-  txHash: string;
-  fromChainId: number;
-  toChainId: number;
-  amount: bigint;
-  status: 'pending' | 'confirmed' | 'failed';
+export class ToolkitError extends Error implements CryptoError {
+  public readonly code: CryptoErrorCode;
+  public readonly retryable: boolean;
+  public readonly details?: Record<string, unknown>;
+
+  constructor(message: string, code: CryptoErrorCode, details?: Record<string, unknown>) {
+    super(message);
+    this.name = 'ToolkitError';
+    this.code = code;
+    this.details = details;
+    this.retryable = [CryptoErrorCode.NETWORK_TIMEOUT, CryptoErrorCode.RATE_LIMIT_EXCEEDED].includes(code);
+
+    Object.setPrototypeOf(this, ToolkitError.prototype);
+  }
 }
 
-/**
- * Configuration for network connection parameters
- */
-export interface NetworkConfig {
-  rpcUrl: string;
-  chainId: number;
-  priorityFee: number;
-  timeoutMs: number;
-}
-
-export type AssetMap = Record<string, CryptoAsset>;
-
-export const DEFAULT_ASSETS: AssetMap = {
-  ETH: { symbol: 'ETH', decimals: 18, contractAddress: null, isStablecoin: false },
-  USDC: { symbol: 'USDC', decimals: 6, contractAddress: '0xa0b8...', isStablecoin: true }
-};
+export type CryptoResult<T> = 
+  | { success: true; data: T }
+  | { success: false; error: CryptoError };
