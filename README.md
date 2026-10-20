@@ -1,13 +1,13 @@
 # dev-toolkit-78
 
-A high-performance TypeScript utility suite designed for rapid integration with EVM-compatible chains. This toolkit streamlines wallet management, gas estimation, and raw transaction signing for decentralized application developers.
+A high-performance TypeScript utility suite designed for rapid integration with EVM-compatible chains. It simplifies complex blockchain interactions, allowing developers to focus on application logic rather than low-level RPC plumbing.
 
 ## Features
 
-*   **Gas Oracle Integration:** Real-time fee estimation with multi-provider fallback support to ensure optimal transaction inclusion.
-*   **Encrypted Key Management:** Secure mnemonic and private key handling using AES-256-GCM encryption standards.
-*   **Type-Safe Contract Wrappers:** Automated generation of TypeScript interfaces from ABI files to prevent runtime errors.
-*   **Cross-Chain Utilities:** Built-in cross-chain verification methods for monitoring bridge liquidity and transaction status across L1s and L2s.
+*   **Robust RPC Provider Wrapper:** Automated retry logic and automatic failover for multiple node endpoints.
+*   **Type-Safe Transaction Builder:** Pre-configured decorators for common contract interactions using Ethers v6 patterns.
+*   **Encrypted Keyring Manager:** Secure local storage utilities for managing ephemeral test accounts during development.
+*   **Gas Estimation Engine:** Optimized algorithms for real-time fee calculation to prevent transaction drops.
 
 ## Installation
 
@@ -19,25 +19,24 @@ npm install dev-toolkit-78
 yarn add dev-toolkit-78
 ```
 
-## Usage Example
+Ensure you have your environment variables configured for your target network in a `.env` file.
+
+## Usage
 
 ```typescript
-import { WalletManager, GasEstimator } from 'dev-toolkit-78';
+import { BlockchainClient } from 'dev-toolkit-78';
 
-const wallet = new WalletManager(process.env.PRIVATE_KEY);
-const estimator = new GasEstimator('mainnet');
+const client = new BlockchainClient({
+  rpcUrl: process.env.RPC_ENDPOINT,
+  chainId: 1
+});
 
-async function sendTransaction() {
-  const gasPrice = await estimator.getGasPrice();
-  const tx = await wallet.signTransaction({
-    to: '0xabc...',
-    value: '1000000000000000000',
-    gasLimit: 21000,
-    maxFeePerGas: gasPrice
-  });
-
-  console.log('Signed Tx:', tx);
+async function getBalance(address: string) {
+  const balance = await client.getBalance(address);
+  console.log(`Balance: ${balance.formatted} ETH`);
 }
+
+getBalance('0x742d35Cc6634C0532925a3b844Bc454e4438f44e');
 ```
 
 ## License
