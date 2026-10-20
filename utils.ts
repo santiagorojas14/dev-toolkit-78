@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
 export interface LoggerOptions {
   logDir: string;
   maxSizeBytes?: number;
@@ -8,62 +10,64 @@ export interface LoggerOptions {
   prefix?: string;
 }
 
-export class RotatingLogger {
+export class CryptoLogger {
   private logDir: string;
   private maxSizeBytes: number;
   private maxFiles: number;
-  private prefix: string;
   private currentFile: string;
 
   constructor(options: LoggerOptions) {
     this.logDir = options.logDir;
-    this.maxSizeBytes = options.maxSizeBytes || 5 * 1024 * 1024; // 5MB default
-    this.maxFiles = options.maxFiles || 5;
-    this.prefix = options.prefix || 'crypto-toolkit';
+    this.maxSizeBytes = options.maxSizeBytes ?? 5 * 1024 * 1024;
+    this.maxFiles = options.maxFiles ?? 5;
+    const prefix = options.prefix ?? 'crypto-toolkit';
 
     if (!fs.existsSync(this.logDir)) {
       fs.mkdirSync(this.logDir, { recursive: true });
     }
 
-    this.currentFile = path.join(this.logDir, `${this.prefix}-current.log`);
+    this.currentFile = path.join(this.logDir, `${prefix}-current.log`);
   }
 
-  /** Rotates log files when current log exceeds size threshold */
-  private rotate(): void {
+  private rotateIfNeeded(): void {
     if (!fs.existsSync(this.currentFile)) return;
 
     const stats = fs.statSync(this.currentFile);
     if (stats.size < this.maxSizeBytes) return;
 
-    const oldestLog = path.join(this.logDir, `${this.prefix}-${this.maxFiles}.log`);
-    if (fs.existsSync(oldestLog)) {
-      fs.unlinkSync(oldestLog);
-    }
-
     for (let i = this.maxFiles - 1; i >= 1; i--) {
-      const src = path.join(this.logDir, `${this.prefix}-${i}.log`);
-      const dest = path.join(this.logDir, `${this.prefix}-${i + 1}.log`);
-      if (fs.existsSync(src)) {
-        fs.renameSync(src, dest);
+      const oldPath = `${this.currentFile}.${i}`;
+      const newPath = `${this.currentFile}.${i + 1}`;
+      if (fs.existsSync(oldPath)) {
+        if (i + 1 > this.maxFiles) {
+          fs.unlinkSync(oldPath);
+        } else {
+          fs.renameSync(oldPath, newPath);
+        }
       }
     }
 
-    fs.renameSync(this.currentFile, path.join(this.logDir, `${this.prefix}-1.log`));
+    fs.renameSync(this.currentFile, `${this.currentFile}.1`);
   }
 
-  /** Writes formatted entry to active log file and console output */
-  public log(level: 'INFO' | 'WARN' | 'ERROR' | 'TX', message: string, data?: unknown): void {
-    this.rotate();
-
+  public log(level: LogLevel, message: string, meta?: Record<string, unknown>): void {
+    this.rotateIfNeeded();
     const timestamp = new Date().toISOString();
-    const payload = data ? ` | ${JSON.stringify(data)}` : '';
-    const entry = `[${timestamp}] [${level}] ${message}${payload}\n`;
+    const metaStr = meta ? ` | ${JSON.stringify(meta)}` : '';
+    const entry = `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}\n`;
 
-    fs.appendFileSync(this.currentFile, entry, 'utf-8');
-    process.stdout.write(entry);
+    fs.appendFileSync(this.currentFile, entry, { encoding: 'utf8' });
   }
 
-  public tx(hash: string, details?: unknown): void {
-    this.log('TX', `Transaction hash: ${hash}`, details);
+  public info(msg: string, meta?: Record<string, unknown>): void {
+    this.log('info', msg, meta);
+  }
+
+  public error(msg: string, meta?: Record<string, unknown>): void {
+    this.log('error', msg, meta);
+  }
+
+  public logTx(txHash: string, status: 'pending' | 'confirmed' | 'failed', meta?: Record<string, unknown>): void {
+    this.log('info', `[TX ${status.toUpperCase()}] ${txHash}`, meta);
   }
 }
