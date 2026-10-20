@@ -1,57 +1,69 @@
-export interface RetryOptions {
-  maxRetries?: number;
-  baseDelayMs?: number;
-  maxDelayMs?: number;
-  backoffFactor?: number;
-  shouldRetry?: (error: unknown) => boolean;
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface LoggerOptions {
+  logDir: string;
+  maxSizeBytes?: number;
+  maxFiles?: number;
+  prefix?: string;
 }
 
-const DEFAULT_OPTIONS: Required<RetryOptions> = {
-  maxRetries: 3,
-  baseDelayMs: 500,
-  maxDelayMs: 5000,
-  backoffFactor: 2,
-  shouldRetry: (error: unknown) => {
-    // Retry on standard transient network failures and rate limits
-    if (error instanceof Error) {
-      const msg = error.message.toLowerCase();
-      return msg.includes('429') || msg.includes('timeout') || msg.includes('network');
+export class RotatingLogger {
+  private logDir: string;
+  private maxSizeBytes: number;
+  private maxFiles: number;
+  private prefix: string;
+  private currentFile: string;
+
+  constructor(options: LoggerOptions) {
+    this.logDir = options.logDir;
+    this.maxSizeBytes = options.maxSizeBytes || 5 * 1024 * 1024; // 5MB default
+    this.maxFiles = options.maxFiles || 5;
+    this.prefix = options.prefix || 'crypto-toolkit';
+
+    if (!fs.existsSync(this.logDir)) {
+      fs.mkdirSync(this.logDir, { recursive: true });
     }
-    return true;
-  },
-};
 
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+    this.currentFile = path.join(this.logDir, `${this.prefix}-current.log`);
+  }
 
-/**
- * Executes an async operation with exponential backoff retry logic.
- * Designed for resilient crypto RPC node requests and API queries.
- */
-export async function retryOperation<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
-  const config = { ...DEFAULT_OPTIONS, ...options };
-  let attempt = 0;
-  let currentDelay = config.baseDelayMs;
+  /** Rotates log files when current log exceeds size threshold */
+  private rotate(): void {
+    if (!fs.existsSync(this.currentFile)) return;
 
-  while (true) {
-    try {
-      return await fn();
-    } catch (error) {
-      attempt++;
+    const stats = fs.statSync(this.currentFile);
+    if (stats.size < this.maxSizeBytes) return;
 
-      if (attempt > config.maxRetries || !config.shouldRetry(error)) {
-        throw error;
+    const oldestLog = path.join(this.logDir, `${this.prefix}-${this.maxFiles}.log`);
+    if (fs.existsSync(oldestLog)) {
+      fs.unlinkSync(oldestLog);
+    }
+
+    for (let i = this.maxFiles - 1; i >= 1; i--) {
+      const src = path.join(this.logDir, `${this.prefix}-${i}.log`);
+      const dest = path.join(this.logDir, `${this.prefix}-${i + 1}.log`);
+      if (fs.existsSync(src)) {
+        fs.renameSync(src, dest);
       }
-
-      // Apply jitter to prevent thundering herd on RPC nodes
-      const jitter = Math.floor(Math.random() * 100);
-      const delay = Math.min(currentDelay + jitter, config.maxDelayMs);
-
-      await sleep(delay);
-      currentDelay *= config.backoffFactor;
     }
+
+    fs.renameSync(this.currentFile, path.join(this.logDir, `${this.prefix}-1.log`));
+  }
+
+  /** Writes formatted entry to active log file and console output */
+  public log(level: 'INFO' | 'WARN' | 'ERROR' | 'TX', message: string, data?: unknown): void {
+    this.rotate();
+
+    const timestamp = new Date().toISOString();
+    const payload = data ? ` | ${JSON.stringify(data)}` : '';
+    const entry = `[${timestamp}] [${level}] ${message}${payload}\n`;
+
+    fs.appendFileSync(this.currentFile, entry, 'utf-8');
+    process.stdout.write(entry);
+  }
+
+  public tx(hash: string, details?: unknown): void {
+    this.log('TX', `Transaction hash: ${hash}`, details);
   }
 }
