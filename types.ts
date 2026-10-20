@@ -1,33 +1,46 @@
-export enum CryptoErrorCode {
-  INVALID_ADDRESS = 'INVALID_ADDRESS',
-  INSUFFICIENT_FUNDS = 'INSUFFICIENT_FUNDS',
-  NETWORK_TIMEOUT = 'NETWORK_TIMEOUT',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+/**
+ * Core interface for crypto exchange asset balances
+ */
+export interface AssetBalance {
+  asset: string;
+  free: string;
+  locked: string;
 }
 
-export interface CryptoError extends Error {
-  code: CryptoErrorCode;
-  details?: Record<string, unknown>;
+/**
+ * Represents a standard order execution event
+ */
+export interface OrderExecution {
+  orderId: number;
+  symbol: string;
+  price: number;
+  quantity: number;
+  side: 'BUY' | 'SELL';
+  timestamp: number;
+}
+
+/**
+ * WebSocket event structure for market data
+ */
+export type MarketEvent = {
+  type: 'ticker' | 'trade';
+  payload: Record<string, unknown>;
+  sequence: number;
+};
+
+/**
+ * Generic configuration for API rate limiting
+ */
+export interface RateLimitConfig {
+  windowMs: number;
+  maxRequests: number;
+}
+
+/**
+ * Error type for standardized API responses
+ */
+export interface CryptoApiError {
+  code: number;
+  message: string;
   retryable: boolean;
 }
-
-export class ToolkitError extends Error implements CryptoError {
-  public readonly code: CryptoErrorCode;
-  public readonly retryable: boolean;
-  public readonly details?: Record<string, unknown>;
-
-  constructor(message: string, code: CryptoErrorCode, details?: Record<string, unknown>) {
-    super(message);
-    this.name = 'ToolkitError';
-    this.code = code;
-    this.details = details;
-    this.retryable = [CryptoErrorCode.NETWORK_TIMEOUT, CryptoErrorCode.RATE_LIMIT_EXCEEDED].includes(code);
-
-    Object.setPrototypeOf(this, ToolkitError.prototype);
-  }
-}
-
-export type CryptoResult<T> = 
-  | { success: true; data: T }
-  | { success: false; error: CryptoError };
