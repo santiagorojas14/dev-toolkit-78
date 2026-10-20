@@ -1,37 +1,26 @@
-export interface TokenPair {
-  symbol: string;
-  address: string;
-  decimals: number;
-}
+import * as winston from 'winston';
+import 'winston-daily-rotate-file';
+import * as path from 'path';
 
 /**
- * Calculates the precise token amount considering decimal offsets
- * Used for preparing transaction data in dev-toolkit-78
+ * Logger setup for dev-toolkit-78
+ * Utilizes daily rotation to manage crypto service logs
  */
-export const formatTokenAmount = (amount: number, decimals: number): bigint => {
-  const factor = BigInt(10 ** decimals);
-  return BigInt(Math.floor(amount * 10 ** decimals));
-};
-
-/**
- * Validates checksum of ethereum-style addresses
- * Essential for preventing funds loss in crypto transfers
- */
-export const isValidAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
-
-/**
- * Normalizes trade execution fees into a consistent scale
- * Converts bps to decimal representation
- */
-export const bpsToDecimal = (bps: number): number => {
-  return bps / 10000;
-};
-
-/**
- * Generates a standard trade description for audit logs
- */
-export const createTradeSummary = (pair: TokenPair, amount: bigint): string => {
-  return `Trade executed for ${amount} units of ${pair.symbol} at ${pair.address}`;
-};
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      dirname: path.join(__dirname, '../logs'),
+      filename: 'crypto-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
