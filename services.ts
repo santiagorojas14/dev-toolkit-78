@@ -1,38 +1,28 @@
-export interface TransactionRequest {
-  asset: string;
-  amount: number;
-  recipient: string;
-}
+import winston from 'winston';
+import 'winston-daily-rotate-file';
 
-export const validateTransaction = (tx: unknown): TransactionRequest => {
-  if (typeof tx !== 'object' || tx === null) {
-    throw new Error('invalid payload format');
-  }
+/**
+ * logger configuration for crypto operations
+ * daily rotation keeps logs manageable for audit
+ */
+const transport = new winston.transports.DailyRotateFile({
+  filename: 'logs/dev-toolkit-%DATE%.log',
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: '20m',
+  maxFiles: '14d'
+});
 
-  const { asset, amount, recipient } = tx as TransactionRequest;
-
-  if (typeof asset !== 'string' || asset.length < 3) {
-    throw new Error('invalid asset identifier');
-  }
-
-  if (typeof amount !== 'number' || amount <= 0) {
-    throw new Error('invalid transaction amount');
-  }
-
-  if (typeof recipient !== 'string' || !recipient.startsWith('0x')) {
-    throw new Error('invalid recipient address');
-  }
-
-  return { asset, amount, recipient };
-};
-
-export const processMainLoop = (queue: unknown[]) => {
-  for (const item of queue) {
-    try {
-      const validTx = validateTransaction(item);
-      console.log(`processing ${validTx.asset} for ${validTx.amount}`);
-    } catch (err) {
-      console.error(`skipped invalid transaction: ${(err as Error).message}`);
-    }
-  }
-};
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    transport,
+    new winston.transports.Console({
+      format: winston.format.simple()
+    })
+  ]
+});
