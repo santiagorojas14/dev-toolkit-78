@@ -1,26 +1,49 @@
-import * as winston from 'winston';
-import 'winston-daily-rotate-file';
-import * as path from 'path';
+import { ethers } from 'ethers';
 
 /**
- * Logger setup for dev-toolkit-78
- * Utilizes daily rotation to manage crypto service logs
+ * Formats wei string to decimal string for UI display
  */
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.DailyRotateFile({
-      dirname: path.join(__dirname, '../logs'),
-      filename: 'crypto-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d'
-    })
-  ]
-});
+export const formatUnits = (value: string, decimals: number = 18): string => {
+  return ethers.formatUnits(value, decimals);
+};
+
+/**
+ * Validates ethereum address format
+ */
+export const isValidAddress = (address: string): boolean => {
+  return ethers.isAddress(address);
+};
+
+/**
+ * Safely parses transaction amount to big integer
+ */
+export const parseAmount = (amount: string, decimals: number = 18): bigint => {
+  try {
+    return ethers.parseUnits(amount, decimals);
+  } catch (error) {
+    return 0n;
+  }
+};
+
+/**
+ * Truncates hash string for console logging
+ */
+export const truncateHash = (hash: string, length: number = 6): string => {
+  if (hash.length <= length * 2) return hash;
+  return `${hash.slice(0, length)}...${hash.slice(-length)}`;
+};
+
+/**
+ * Sleeps for given milliseconds
+ */
+export const sleep = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+/**
+ * Calculates percentage slippage between two amounts
+ */
+export const calculateSlippage = (expected: bigint, actual: bigint): number => {
+  const diff = expected - actual;
+  return Number((diff * 10000n) / expected) / 100;
+};
