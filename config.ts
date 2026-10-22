@@ -1,38 +1,33 @@
-/**
- * Configuration constants for dev-toolkit-78 crypto utilities
- */
+import { z } from 'zod';
 
-export interface NetworkConfig {
-  readonly chainId: number;
-  readonly rpcUrl: string;
-  readonly retryAttempts: number;
+const ConfigSchema = z.object({
+  rpcUrl: z.string().default('https://api.mainnet-beta.solana.com'),
+  retryAttempts: z.number().int().min(0).default(3),
+  debugMode: z.boolean().default(false),
+  timeoutMs: z.number().positive().default(5000),
+});
+
+type Config = z.infer<typeof ConfigSchema>;
+
+/**
+ * loads and validates application configuration
+ * merges environment variables with defaults
+ */
+export function loadConfig(): Config {
+  const env = {
+    rpcUrl: process.env.RPC_URL,
+    retryAttempts: process.env.RETRY_ATTEMPTS ? parseInt(process.env.RETRY_ATTEMPTS, 10) : undefined,
+    debugMode: process.env.DEBUG_MODE === 'true',
+    timeoutMs: process.env.TIMEOUT_MS ? parseInt(process.env.TIMEOUT_MS, 10) : undefined,
+  };
+
+  const result = ConfigSchema.safeParse(env);
+
+  if (!result.success) {
+    throw new Error(`invalid configuration: ${result.error.message}`);
+  }
+
+  return result.data;
 }
 
-/**
- * Supported crypto networks and their settings
- */
-export const NETWORKS: Record<string, NetworkConfig> = {
-  MAINNET: {
-    chainId: 1,
-    rpcUrl: 'https://eth.llamarpc.com',
-    retryAttempts: 3,
-  },
-  GOERLI: {
-    chainId: 5,
-    rpcUrl: 'https://eth-goerli.public.blastapi.io',
-    retryAttempts: 5,
-  }
-};
-
-export const DEFAULT_TIMEOUT_MS: number = 30000;
-
-/**
- * Validation for configuration values
- */
-export const validateNetwork = (name: string): boolean => {
-  return Object.prototype.hasOwnProperty.call(NETWORKS, name);
-};
-
-export const getNetworkConfig = (name: string): NetworkConfig | undefined => {
-  return NETWORKS[name];
-};
+export const config = loadConfig();
