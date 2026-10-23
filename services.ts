@@ -1,43 +1,58 @@
 import { ethers } from 'ethers';
 
 /**
- * Formats a crypto balance for UI display
+ * Configuration interface for crypto provider initialization
  */
-export const formatBalance = (balance: string, decimals: number = 18): string => {
-  const parsed = ethers.formatUnits(balance, decimals);
-  return parseFloat(parsed).toFixed(4);
-};
+interface ProviderConfig {
+  rpcUrl: string;
+  chainId: number;
+}
 
 /**
- * Validates an ethereum address format
+ * Represents a standard blockchain transaction response
  */
-export const isValidAddress = (address: string): boolean => {
-  return ethers.isAddress(address);
-};
+interface TxResponse {
+  hash: string;
+  nonce: number;
+  gasLimit: bigint;
+}
 
 /**
- * Calculates slippage-adjusted amounts for swaps
+ * Service for interacting with EVM-compatible networks
  */
-export const calculateSlippageAmount = (
-  amount: bigint,
-  slippageBasisPoints: bigint,
-  isBuy: boolean = true
-): bigint => {
-  const basis = 10000n;
-  const slippage = isBuy ? basis + slippageBasisPoints : basis - slippageBasisPoints;
-  return (amount * slippage) / basis;
-};
+export class ChainService {
+  private provider: ethers.JsonRpcProvider;
 
-/**
- * Pausable delay for rate-limited RPC calls
- */
-export const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
+  constructor(config: ProviderConfig) {
+    this.provider = new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
+  }
 
-/**
- * Normalizes error messages from contract reverts
- */
-export const parseContractError = (error: any): string => {
-  return error.reason || error.message || 'unknown transaction error';
-};
+  /**
+   * Retrieves balance for a specific wallet address
+   * @param address - The hex address to query
+   * @returns BigInt representing balance in wei
+   */
+  public async getBalance(address: string): Promise<bigint> {
+    try {
+      return await this.provider.getBalance(address);
+    } catch (error) {
+      console.error(`Failed to fetch balance for ${address}:`, error);
+      throw new Error('NETWORK_UNAVAILABLE');
+    }
+  }
+
+  /**
+   * Fetches pending transaction metadata
+   * @param txHash - The transaction hash to inspect
+   */
+  public async getTransaction(txHash: string): Promise<TxResponse | null> {
+    const tx = await this.provider.getTransaction(txHash);
+    if (!tx) return null;
+
+    return {
+      hash: tx.hash,
+      nonce: tx.nonce,
+      gasLimit: tx.gasLimit,
+    };
+  }
+}
