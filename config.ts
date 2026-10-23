@@ -1,33 +1,32 @@
-import { z } from 'zod';
+import { readFileSync } from 'fs';
 
-const ConfigSchema = z.object({
-  rpcUrl: z.string().default('https://api.mainnet-beta.solana.com'),
-  retryAttempts: z.number().int().min(0).default(3),
-  debugMode: z.boolean().default(false),
-  timeoutMs: z.number().positive().default(5000),
-});
-
-type Config = z.infer<typeof ConfigSchema>;
-
-/**
- * loads and validates application configuration
- * merges environment variables with defaults
- */
-export function loadConfig(): Config {
-  const env = {
-    rpcUrl: process.env.RPC_URL,
-    retryAttempts: process.env.RETRY_ATTEMPTS ? parseInt(process.env.RETRY_ATTEMPTS, 10) : undefined,
-    debugMode: process.env.DEBUG_MODE === 'true',
-    timeoutMs: process.env.TIMEOUT_MS ? parseInt(process.env.TIMEOUT_MS, 10) : undefined,
-  };
-
-  const result = ConfigSchema.safeParse(env);
-
-  if (!result.success) {
-    throw new Error(`invalid configuration: ${result.error.message}`);
-  }
-
-  return result.data;
+interface AppConfig {
+  rpcUrl: string;
+  chainId: number;
+  maxRetries: number;
 }
 
-export const config = loadConfig();
+const DEFAULT_CONFIG: AppConfig = {
+  rpcUrl: 'https://mainnet.infura.io/v3/default',
+  chainId: 1,
+  maxRetries: 3
+};
+
+/**
+ * Loads configuration from file or returns environment defaults
+ */
+export function loadConfig(path?: string): AppConfig {
+  try {
+    if (!path) return DEFAULT_CONFIG;
+    const fileData = readFileSync(path, 'utf-8');
+    const parsed = JSON.parse(fileData);
+    
+    return {
+      ...DEFAULT_CONFIG,
+      ...parsed
+    };
+  } catch (error) {
+    console.error('Failed to load config, falling back to defaults:', error);
+    return DEFAULT_CONFIG;
+  }
+}
