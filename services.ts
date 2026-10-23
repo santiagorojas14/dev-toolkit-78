@@ -1,39 +1,43 @@
 import { ethers } from 'ethers';
 
-interface ProviderConfig {
-  rpcUrl: string;
-  chainId: number;
-}
+/**
+ * Formats a crypto balance for UI display
+ */
+export const formatBalance = (balance: string, decimals: number = 18): string => {
+  const parsed = ethers.formatUnits(balance, decimals);
+  return parseFloat(parsed).toFixed(4);
+};
 
 /**
- * Manages interaction with blockchain providers for dev-toolkit-78
+ * Validates an ethereum address format
  */
-export class BlockchainService {
-  private provider: ethers.JsonRpcProvider;
+export const isValidAddress = (address: string): boolean => {
+  return ethers.isAddress(address);
+};
 
-  constructor(config: ProviderConfig) {
-    this.provider = new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
-  }
+/**
+ * Calculates slippage-adjusted amounts for swaps
+ */
+export const calculateSlippageAmount = (
+  amount: bigint,
+  slippageBasisPoints: bigint,
+  isBuy: boolean = true
+): bigint => {
+  const basis = 10000n;
+  const slippage = isBuy ? basis + slippageBasisPoints : basis - slippageBasisPoints;
+  return (amount * slippage) / basis;
+};
 
-  async getGasPrice(): Promise<bigint> {
-    try {
-      const feeData = await this.provider.getFeeData();
-      return feeData.gasPrice ?? 0n;
-    } catch (error) {
-      console.error('Failed to fetch gas price:', error);
-      return 0n;
-    }
-  }
+/**
+ * Pausable delay for rate-limited RPC calls
+ */
+export const sleep = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
 
-  async getBlockNumber(): Promise<number> {
-    return await this.provider.getBlockNumber();
-  }
-
-  async validateAddress(address: string): Promise<boolean> {
-    return ethers.isAddress(address);
-  }
-}
-
-export const createProvider = (rpcUrl: string, chainId: number): BlockchainService => {
-  return new BlockchainService({ rpcUrl, chainId });
+/**
+ * Normalizes error messages from contract reverts
+ */
+export const parseContractError = (error: any): string => {
+  return error.reason || error.message || 'unknown transaction error';
 };
