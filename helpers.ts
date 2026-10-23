@@ -1,30 +1,34 @@
-export interface TokenMetadata {
-  address: string;
-  symbol: string;
-  decimals: number;
+import { z } from 'zod';
+
+/**
+ * Schema for crypto transaction input
+ */
+const TransactionSchema = z.object({
+  txHash: z.string().length(66, 'Invalid transaction hash length'),
+  amount: z.number().positive('Amount must be positive'),
+  asset: z.string().min(2),
+  timestamp: z.number().int()
+});
+
+export type Transaction = z.infer<typeof TransactionSchema>;
+
+/**
+ * Validates inputs before processing in main loop
+ */
+export function validateInput(data: unknown): Transaction | null {
+  try {
+    return TransactionSchema.parse(data);
+  } catch (error) {
+    console.error('Validation failed for crypto payload:', error);
+    return null;
+  }
 }
 
 /**
- * Formats a raw crypto amount to human-readable string
+ * Batch validation utility for processing loops
  */
-export const formatTokenAmount = (amount: bigint, decimals: number): string => {
-  const divisor = BigInt(10 ** decimals);
-  const integerPart = amount / divisor;
-  const fractionalPart = amount % divisor;
-  
-  return `${integerPart}.${fractionalPart.toString().padStart(decimals, '0')}`;
-};
-
-/**
- * Validates checksum for standard evm addresses
- */
-export const isValidAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
-
-/**
- * Gas estimation multiplier with safety margin
- */
-export const calculateGasLimit = (gas: bigint): bigint => {
-  return (gas * 120n) / 100n;
-};
+export function validateBatch(items: unknown[]): Transaction[] {
+  return items
+    .map((item) => validateInput(item))
+    .filter((item): item is Transaction => item !== null);
+}
