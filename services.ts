@@ -1,28 +1,39 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
+import { ethers } from 'ethers';
+
+interface ProviderConfig {
+  rpcUrl: string;
+  chainId: number;
+}
 
 /**
- * logger configuration for crypto operations
- * daily rotation keeps logs manageable for audit
+ * Manages interaction with blockchain providers for dev-toolkit-78
  */
-const transport = new winston.transports.DailyRotateFile({
-  filename: 'logs/dev-toolkit-%DATE%.log',
-  datePattern: 'YYYY-MM-DD',
-  zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '14d'
-});
+export class BlockchainService {
+  private provider: ethers.JsonRpcProvider;
 
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    transport,
-    new winston.transports.Console({
-      format: winston.format.simple()
-    })
-  ]
-});
+  constructor(config: ProviderConfig) {
+    this.provider = new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
+  }
+
+  async getGasPrice(): Promise<bigint> {
+    try {
+      const feeData = await this.provider.getFeeData();
+      return feeData.gasPrice ?? 0n;
+    } catch (error) {
+      console.error('Failed to fetch gas price:', error);
+      return 0n;
+    }
+  }
+
+  async getBlockNumber(): Promise<number> {
+    return await this.provider.getBlockNumber();
+  }
+
+  async validateAddress(address: string): Promise<boolean> {
+    return ethers.isAddress(address);
+  }
+}
+
+export const createProvider = (rpcUrl: string, chainId: number): BlockchainService => {
+  return new BlockchainService({ rpcUrl, chainId });
+};
