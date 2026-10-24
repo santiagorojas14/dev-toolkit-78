@@ -1,58 +1,68 @@
-import { ethers } from 'ethers';
+export interface Trade {
+  id: string;
+  price: number;
+  amount: number;
+  timestamp: number;
+  side: 'buy' | 'sell';
+}
 
-/**
- * Configuration interface for crypto provider initialization
- */
-interface ProviderConfig {
-  rpcUrl: string;
-  chainId: number;
+export interface VWAPResult {
+  symbol: string;
+  vwap: number;
+  totalVolume: number;
+  tradeCount: number;
+  startTime: number;
+  endTime: number;
 }
 
 /**
- * Represents a standard blockchain transaction response
+ * Service for aggregating and processing cryptocurrency trading metrics.
  */
-interface TxResponse {
-  hash: string;
-  nonce: number;
-  gasLimit: bigint;
-}
-
-/**
- * Service for interacting with EVM-compatible networks
- */
-export class ChainService {
-  private provider: ethers.JsonRpcProvider;
-
-  constructor(config: ProviderConfig) {
-    this.provider = new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
-  }
-
+export class CryptoDataService {
   /**
-   * Retrieves balance for a specific wallet address
-   * @param address - The hex address to query
-   * @returns BigInt representing balance in wei
+   * Calculates Volume-Weighted Average Price (VWAP) for a given trade list.
    */
-  public async getBalance(address: string): Promise<bigint> {
-    try {
-      return await this.provider.getBalance(address);
-    } catch (error) {
-      console.error(`Failed to fetch balance for ${address}:`, error);
-      throw new Error('NETWORK_UNAVAILABLE');
+  public calculateVWAP(symbol: string, trades: Trade[]): VWAPResult | null {
+    if (!trades || trades.length === 0) {
+      return null;
     }
-  }
 
-  /**
-   * Fetches pending transaction metadata
-   * @param txHash - The transaction hash to inspect
-   */
-  public async getTransaction(txHash: string): Promise<TxResponse | null> {
-    const tx = await this.provider.getTransaction(txHash);
-    if (!tx) return null;
+    let totalPriceVolume = 0;
+    let totalVolume = 0;
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+
+    for (const trade of trades) {
+      if (trade.price <= 0 || trade.amount <= 0) {
+        continue;
+      }
+
+      totalPriceVolume += trade.price * trade.amount;
+      totalVolume += trade.amount;
+
+      if (trade.timestamp < minTime) minTime = trade.timestamp;
+      if (trade.timestamp > maxTime) maxTime = trade.timestamp;
+    }
+
+    if (totalVolume === 0) {
+      return null;
+    }
 
     return {
-      hash: tx.hash,
-      nonce: tx.nonce,
-      gasLimit: tx.gasLimit,
+      symbol,
+      vwap: Number((totalPriceVolume / totalVolume).toFixed(8)),
+      totalVolume: Number(totalVolume.toFixed(8)),
+      tradeCount: trades.length,
+      startTime: minTime === Infinity ? Date.now() : minTime,
+      endTime: maxTime === -Infinity ? Date.now() : maxTime,
     };
+  }
+
+  /**
+   * Filters trade history within a rolling time window.
+   */
+  public filterTradesByWindow(trades: Trade[], windowMs: number): Trade[] {
+    const cutoff = Date.now() - windowMs;
+    return trades.filter((trade) => trade.timestamp >= cutoff);
   }
 }
