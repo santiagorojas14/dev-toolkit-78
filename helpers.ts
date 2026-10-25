@@ -1,34 +1,42 @@
-import { z } from 'zod';
+import { ethers } from 'ethers';
 
-/**
- * Schema for crypto transaction input
- */
-const TransactionSchema = z.object({
-  txHash: z.string().length(66, 'Invalid transaction hash length'),
-  amount: z.number().positive('Amount must be positive'),
-  asset: z.string().min(2),
-  timestamp: z.number().int()
-});
-
-export type Transaction = z.infer<typeof TransactionSchema>;
-
-/**
- * Validates inputs before processing in main loop
- */
-export function validateInput(data: unknown): Transaction | null {
-  try {
-    return TransactionSchema.parse(data);
-  } catch (error) {
-    console.error('Validation failed for crypto payload:', error);
-    return null;
-  }
+export interface CryptoTransaction {
+  hash: string;
+  value: bigint;
+  timestamp: number;
 }
 
 /**
- * Batch validation utility for processing loops
+ * converts hex wei string to decimal eth
  */
-export function validateBatch(items: unknown[]): Transaction[] {
-  return items
-    .map((item) => validateInput(item))
-    .filter((item): item is Transaction => item !== null);
-}
+export const formatEtherUnits = (wei: string): string => {
+  return ethers.formatEther(BigInt(wei));
+};
+
+/**
+ * validates standard ethereum address format
+ */
+export const isValidAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
+/**
+ * calculates transaction fee based on gas and price
+ */
+export const calculateFee = (gasLimit: bigint, gasPrice: bigint): bigint => {
+  return gasLimit * gasPrice;
+};
+
+/**
+ * parses timestamp from blockchain hex block
+ */
+export const parseBlockTimestamp = (hex: string): number => {
+  return parseInt(hex, 16) * 1000;
+};
+
+/**
+ * truncates long hashes for display
+ */
+export const truncateHash = (hash: string, len: number = 6): string => {
+  return `${hash.slice(0, len + 2)}...${hash.slice(-len)}`;
+};
