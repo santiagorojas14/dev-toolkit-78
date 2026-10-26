@@ -1,42 +1,43 @@
-import { ethers } from 'ethers';
-
-export interface CryptoTransaction {
-  hash: string;
+export interface TokenAmount {
   value: bigint;
-  timestamp: number;
+  decimals: number;
 }
 
 /**
- * converts hex wei string to decimal eth
+ * formats token amounts for human readability
  */
-export const formatEtherUnits = (wei: string): string => {
-  return ethers.formatEther(BigInt(wei));
+export const formatTokenAmount = (amount: bigint, decimals: number): string => {
+  const divisor = 10n ** BigInt(decimals);
+  const integerPart = amount / divisor;
+  const fractionalPart = (amount % divisor).toString().padStart(decimals, '0');
+  return `${integerPart}.${fractionalPart.slice(0, 6)}`;
 };
 
 /**
- * validates standard ethereum address format
+ * calculates basis points for slippage tolerance
+ */
+export const calculateSlippage = (amount: bigint, bps: number): bigint => {
+  return (amount * BigInt(bps)) / 10000n;
+};
+
+/**
+ * validates ethereum-style addresses
  */
 export const isValidAddress = (address: string): boolean => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
 
 /**
- * calculates transaction fee based on gas and price
+ * scales token amount based on decimal difference
  */
-export const calculateFee = (gasLimit: bigint, gasPrice: bigint): bigint => {
-  return gasLimit * gasPrice;
-};
-
-/**
- * parses timestamp from blockchain hex block
- */
-export const parseBlockTimestamp = (hex: string): number => {
-  return parseInt(hex, 16) * 1000;
-};
-
-/**
- * truncates long hashes for display
- */
-export const truncateHash = (hash: string, len: number = 6): string => {
-  return `${hash.slice(0, len + 2)}...${hash.slice(-len)}`;
+export const normalizeDecimals = (
+  amount: bigint,
+  fromDecimals: number,
+  toDecimals: number
+): bigint => {
+  const diff = toDecimals - fromDecimals;
+  if (diff === 0) return amount;
+  return diff > 0 
+    ? amount * (10n ** BigInt(diff)) 
+    : amount / (10n ** BigInt(Math.abs(diff)));
 };
