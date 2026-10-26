@@ -1,35 +1,35 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
-
-/**
- * Crypto-focused logger setup for dev-toolkit-78
- * Implements daily rotation to manage disk space
- */
-export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.DailyRotateFile({
-      filename: 'logs/toolkit-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d',
-    }),
-  ],
-});
-
-export interface LogMetadata {
-  asset?: string;
-  txHash?: string;
-  status?: 'success' | 'failure';
-  [key: string]: any;
+export interface RetryOptions {
+  maxAttempts: number;
+  delayMs: number;
 }
 
-export const logTrade = (message: string, meta: LogMetadata) => {
-  logger.info(message, meta);
-};
+/**
+ * Executes a network operation with exponential backoff
+ */
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      
+      if (attempt < options.maxAttempts) {
+        const backoff = options.delayMs * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Sleep helper for non-blocking delays
+ */
+export const sleep = (ms: number): Promise<void> => 
+  new Promise((resolve) => setTimeout(resolve, ms));
