@@ -1,35 +1,47 @@
-export interface RetryOptions {
-  maxAttempts: number;
-  delayMs: number;
+/**
+ * Crypto utility functions for dev-toolkit-78
+ */
+
+export interface TransactionHash {
+  id: string;
+  timestamp: number;
+  confirmed: boolean;
 }
 
 /**
- * Executes a network operation with exponential backoff
+ * Formats a raw hex string into a standardized 64-character hash
  */
-export async function withRetry<T>(
-  operation: () => Promise<T>,
-  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
-): Promise<T> {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
-    try {
-      return await operation();
-    } catch (err) {
-      lastError = err;
-      
-      if (attempt < options.maxAttempts) {
-        const backoff = options.delayMs * Math.pow(2, attempt - 1);
-        await new Promise((resolve) => setTimeout(resolve, backoff));
-      }
-    }
-  }
-
-  throw lastError;
-}
+export const formatTxHash = (hash: string): string => {
+  const clean = hash.startsWith('0x') ? hash.slice(2) : hash;
+  return clean.toLowerCase().padStart(64, '0');
+};
 
 /**
- * Sleep helper for non-blocking delays
+ * Validates if a string matches the expected crypto address format
  */
-export const sleep = (ms: number): Promise<void> => 
-  new Promise((resolve) => setTimeout(resolve, ms));
+export const isValidAddress = (address: string): boolean => {
+  const addressRegex = /^(0x)?[0-9a-fA-F]{40}$/;
+  return addressRegex.test(address);
+};
+
+/**
+ * Calculates the fee for a transaction based on network congestion
+ */
+export const calculateNetworkFee = (
+  gasLimit: number,
+  gasPriceGwei: number
+): number => {
+  const GWEI_TO_ETH = 1e-9;
+  return gasLimit * gasPriceGwei * GWEI_TO_ETH;
+};
+
+/**
+ * Parses a transaction response object into a typed interface
+ */
+export const parseTxResponse = (data: any): TransactionHash => {
+  return {
+    id: data.hash || '0x0',
+    timestamp: data.blockTime || Date.now(),
+    confirmed: !!data.confirmations && data.confirmations > 0
+  };
+};
