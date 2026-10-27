@@ -1,35 +1,70 @@
-import { LRUCache } from 'lru-cache';
-
-interface MarketData {
-  price: number;
-  timestamp: number;
+export interface RpcConfig {
+  endpoint: string;
+  timeoutMs: number;
+  maxRetries: number;
 }
 
-// Cache for crypto price lookups to reduce network calls
-const priceCache = new LRUCache<string, MarketData>({
-  max: 500,
-  ttl: 1000 * 30, // 30 seconds cache
-});
-
-export class CryptoService {
-  /**
-   * Fetches price with memoization layer
-   */
-  async getMarketPrice(symbol: string): Promise<number> {
-    const cached = priceCache.get(symbol);
-    if (cached) return cached.price;
-
-    const freshPrice = await this.fetchFromExchange(symbol);
-    priceCache.set(symbol, { price: freshPrice, timestamp: Date.now() });
-    
-    return freshPrice;
-  }
-
-  private async fetchFromExchange(symbol: string): Promise<number> {
-    // Simulate network latency for niche exchange API
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    return Math.random() * 50000;
+export class CryptoServiceError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'INVALID_ADDRESS' | 'TIMEOUT' | 'RPC_ERROR' | 'INSUFFICIENT_FUNDS',
+    public readonly details?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = 'CryptoServiceError';
   }
 }
 
-export const cryptoService = new CryptoService();
+export class TransactionService {
+  private readonly config: RpcConfig;
+
+  constructor(config: RpcConfig) {
+    this.config = config;
+  }
+
+  public validateAddress(address: string): boolean {
+    if (!address || typeof address !== 'string') {
+      throw new CryptoServiceError('Address must be a non-empty string', 'INVALID_ADDRESS', { address });
+    }
+    const hexPattern = /^0x[a-fA-F0-9]{40}$/;
+    if (!hexPattern.test(address)) {
+      throw new CryptoServiceError('Invalid EVM address format', 'INVALID_ADDRESS', { address });
+    }
+    return true;
+  }
+
+  public async executeRpcQuery<T>(queryFn: () => Promise<T>): Promise<T> {
+    let attempt = 0;
+    while (attempt <= this.config.maxRetries) {
+      try {
+        let timer: NodeJS.Timeout;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new CryptoServiceError('RPC request timed out', 'TIMEOUT')),
+            this.config.timeoutMs
+          );
+        });
+
+        const result = await Promise.race([queryFn(), timeoutPromise]);
+        clearTimeout(timer!);
+        return result;
+      } catch (err) {
+        attempt++;
+        if (err instanceof CryptoServiceError && err.code === 'TIMEOUT' && attempt <= this.config.maxRetries) {
+          continue;
+        }
+        if (err instanceof Error && err.message.includes('insufficient funds')) {
+          throw new CryptoServiceError('Insufficient funds for execution', 'INSUFFICIENT_FUNDS', {
+            originalError: err.message,
+          });
+        }
+        throw new CryptoServiceError(
+          `RPC Query failed: ${err instanceof Error ? err.message : String(err)}`,
+          'RPC_ERROR',
+          { attempt, originalError: err }
+        );
+      }
+    }
+    throw new CryptoServiceError('Max retries exceeded for RPC query', 'TIMEOUT');
+  }
+}
