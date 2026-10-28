@@ -1,43 +1,41 @@
-export interface TokenAmount {
-  value: bigint;
-  decimals: number;
-}
+import { BigNumber } from 'ethers';
 
 /**
- * formats token amounts for human readability
+ * Converts wei string to formatted token decimal string
  */
-export const formatTokenAmount = (amount: bigint, decimals: number): string => {
-  const divisor = 10n ** BigInt(decimals);
-  const integerPart = amount / divisor;
-  const fractionalPart = (amount % divisor).toString().padStart(decimals, '0');
-  return `${integerPart}.${fractionalPart.slice(0, 6)}`;
+export const formatTokenAmount = (amount: string, decimals: number = 18): string => {
+  const bn = BigNumber.from(amount);
+  const divisor = BigNumber.from(10).pow(decimals);
+  return (bn.div(divisor)).toString() + '.' + (bn.mod(divisor)).toString().padStart(decimals, '0');
 };
 
 /**
- * calculates basis points for slippage tolerance
+ * Calculates slippage-adjusted minimum output amount
  */
-export const calculateSlippage = (amount: bigint, bps: number): bigint => {
-  return (amount * BigInt(bps)) / 10000n;
+export const calculateMinOutput = (amountIn: string, slippageBps: number): string => {
+  const bn = BigNumber.from(amountIn);
+  const slippageFactor = 10000 - slippageBps;
+  return bn.mul(slippageFactor).div(10000).toString();
 };
 
 /**
- * validates ethereum-style addresses
+ * Truncates ethereum addresses for UI display
  */
-export const isValidAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
+export const shortenAddress = (address: string): string => {
+  if (!address) return '';
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
 };
 
 /**
- * scales token amount based on decimal difference
+ * Delay execution for retry logic or rate limiting
  */
-export const normalizeDecimals = (
-  amount: bigint,
-  fromDecimals: number,
-  toDecimals: number
-): bigint => {
-  const diff = toDecimals - fromDecimals;
-  if (diff === 0) return amount;
-  return diff > 0 
-    ? amount * (10n ** BigInt(diff)) 
-    : amount / (10n ** BigInt(Math.abs(diff)));
+export const sleep = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+/**
+ * Safely parses transaction errors
+ */
+export const parseContractError = (error: any): string => {
+  return error?.data?.message || error?.message || 'unknown transaction error';
 };
