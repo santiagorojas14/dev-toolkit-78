@@ -1,60 +1,34 @@
-export interface CryptoConfig {
-  network: 'mainnet' | 'testnet' | 'devnet';
-  rpcUrl: string;
+/**
+ * Configuration constants for dev-toolkit-78 crypto operations.
+ */
+
+export interface NetworkConfig {
   chainId: number;
-  maxGasLimit: number;
-  retryAttempts: number;
+  rpcUrl: string;
+  maxRetries: number;
   timeoutMs: number;
 }
 
-const DEFAULT_CONFIG: CryptoConfig = {
-  network: 'mainnet',
-  rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/demo',
+export const MAINNET_CONFIG: NetworkConfig = {
   chainId: 1,
-  maxGasLimit: 5_000_000,
-  retryAttempts: 3,
-  timeoutMs: 10_000,
+  rpcUrl: 'https://api.mainnet.dev-toolkit.io',
+  maxRetries: 3,
+  timeoutMs: 5000,
 };
 
+export const SUPPORTED_ASSETS: string[] = ['BTC', 'ETH', 'SOL', 'USDT'];
+
 /**
- * Configuration manager for crypto network connections and settings.
+ * Validates the network configuration integrity.
+ * @param config - The network configuration object to validate
+ * @returns boolean indicating if config is valid
  */
-export class ConfigLoader {
-  private currentConfig: CryptoConfig;
-
-  constructor(overrides: Partial<CryptoConfig> = {}) {
-    this.currentConfig = this.loadConfig(overrides);
-  }
-
-  private loadConfig(overrides: Partial<CryptoConfig>): CryptoConfig {
-    const envConfig: Partial<CryptoConfig> = {
-      rpcUrl: process.env.CRYPTO_RPC_URL,
-      chainId: process.env.CRYPTO_CHAIN_ID ? parseInt(process.env.CRYPTO_CHAIN_ID, 10) : undefined,
-      network: process.env.CRYPTO_NETWORK as CryptoConfig['network'],
-    };
-
-    const cleanEnvConfig = Object.fromEntries(
-      Object.entries(envConfig).filter(([_, value]) => value !== undefined)
-    );
-
-    return {
-      ...DEFAULT_CONFIG,
-      ...cleanEnvConfig,
-      ...overrides,
-    };
-  }
-
-  public getConfig(): Readonly<CryptoConfig> {
-    return Object.freeze({ ...this.currentConfig });
-  }
-
-  public updateConfig(updates: Partial<CryptoConfig>): CryptoConfig {
-    this.currentConfig = {
-      ...this.currentConfig,
-      ...updates,
-    };
-    return this.getConfig();
-  }
+export function isValidConfig(config: NetworkConfig): boolean {
+  return config.chainId > 0 && config.rpcUrl.startsWith('https://');
 }
 
-export const defaultConfigLoader = new ConfigLoader();
+export default {
+  network: MAINNET_CONFIG,
+  assets: SUPPORTED_ASSETS,
+  validator: isValidConfig,
+};
