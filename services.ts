@@ -1,72 +1,61 @@
-export interface RetryOptions {
-  maxAttempts?: number;
-  delayMs?: number;
-  backoffFactor?: number;
-  retryableErrors?: string[];
+export interface CryptoTransaction {
+  id: string;
+  recipientAddress: string;
+  amount: number;
+  assetSymbol: string;
+  nonce: number;
 }
 
-/**
- * Executes an async operation with exponential backoff retry mechanism.
- * Designed for resilient crypto RPC calls and network queries.
- */
-export async function fetchWithRetry<T>(
-  fn: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
-  const {
-    maxAttempts = 3,
-    delayMs = 1000,
-    backoffFactor = 2,
-    retryableErrors = ['ECONNRESET', 'ETIMEDOUT', '429', '503', 'HTTP 429'],
-  } = options;
+export interface ProcessingSummary {
+  processedCount: number;
+  failedCount: number;
+  errors: Array<{ id: string; reason: string }>;
+}
 
-  let currentAttempt = 0;
-  let currentDelay = delayMs;
+const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+const SUPPORTED_ASSETS = new Set(['BTC', 'ETH', 'USDT', 'USDC', 'SOL']);
 
-  while (currentAttempt < maxAttempts) {
-    try {
-      return await fn();
-    } catch (error: any) {
-      currentAttempt++;
-      const errorMessage = error?.message || String(error);
-      const isRetryable = retryableErrors.some((code) => errorMessage.includes(code));
+export function validateTransactionInput(tx: CryptoTransaction): { valid: boolean; reason?: string } {
+  if (!tx || typeof tx !== 'object') {
+    return { valid: false, reason: 'Invalid payload format' };
+  }
+  if (!tx.id || typeof tx.id !== 'string') {
+    return { valid: false, reason: 'Missing or invalid transaction ID' };
+  }
+  if (!tx.recipientAddress || !ADDRESS_REGEX.test(tx.recipientAddress)) {
+    return { valid: false, reason: 'Invalid recipient EVM wallet address' };
+  }
+  if (typeof tx.amount !== 'number' || tx.amount <= 0 || !Number.isFinite(tx.amount)) {
+    return { valid: false, reason: 'Amount must be a positive finite number' };
+  }
+  if (!tx.assetSymbol || !SUPPORTED_ASSETS.has(tx.assetSymbol.toUpperCase())) {
+    return { valid: false, reason: `Unsupported asset symbol: ${tx.assetSymbol}` };
+  }
+  if (typeof tx.nonce !== 'number' || tx.nonce < 0) {
+    return { valid: false, reason: 'Nonce must be a non-negative integer' };
+  }
+  return { valid: true };
+}
 
-      if (currentAttempt >= maxAttempts || !isRetryable) {
-        throw error;
-      }
+export function processTransactionBatch(batch: CryptoTransaction[]): ProcessingSummary {
+  const summary: ProcessingSummary = {
+    processedCount: 0,
+    failedCount: 0,
+    errors: [],
+  };
 
-      await new Promise((resolve) => setTimeout(resolve, currentDelay));
-      currentDelay *= backoffFactor;
+  for (const tx of batch) {
+    // Validate input before executing downstream processing
+    const validation = validateTransactionInput(tx);
+    if (!validation.valid) {
+      summary.failedCount++;
+      summary.errors.push({ id: tx?.id || 'unknown', reason: validation.reason || 'Unknown validation failure' });
+      continue;
     }
+
+    // Execute valid transaction processing
+    summary.processedCount++;
   }
 
-  throw new Error('Maximum retry attempts reached');
-}
-
-/**
- * Crypto node JSON-RPC request wrapper with built-in retry handling.
- */
-export async function queryCryptoRpc<T>(
-  rpcUrl: string,
-  method: string,
-  params: unknown[] = []
-): Promise<T> {
-  return fetchWithRetry(async () => {
-    const response = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`RPC server error HTTP ${response.status}`);
-    }
-
-    const data = (await response.json()) as { result?: T; error?: { code: number; message: string } };
-    if (data.error) {
-      throw new Error(`RPC error ${data.error.code}: ${data.error.message}`);
-    }
-
-    return data.result as T;
-  });
+  return summary;
 }
