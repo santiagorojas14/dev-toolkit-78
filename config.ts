@@ -1,34 +1,35 @@
-/**
- * Configuration constants for dev-toolkit-78 crypto operations.
- */
-
-export interface NetworkConfig {
-  chainId: number;
+export interface ChainConfig {
   rpcUrl: string;
-  maxRetries: number;
+  chainId: number;
+  retryAttempts: number;
   timeoutMs: number;
 }
 
-export const MAINNET_CONFIG: NetworkConfig = {
-  chainId: 1,
-  rpcUrl: 'https://api.mainnet.dev-toolkit.io',
-  maxRetries: 3,
-  timeoutMs: 5000,
+export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
+  mainnet: {
+    rpcUrl: 'https://eth-mainnet.alchemyapi.io/v2/json-rpc',
+    chainId: 1,
+    retryAttempts: 3,
+    timeoutMs: 5000,
+  },
+  polygon: {
+    rpcUrl: 'https://polygon-rpc.com',
+    chainId: 137,
+    retryAttempts: 5,
+    timeoutMs: 8000,
+  },
 };
-
-export const SUPPORTED_ASSETS: string[] = ['BTC', 'ETH', 'SOL', 'USDT'];
 
 /**
- * Validates the network configuration integrity.
- * @param config - The network configuration object to validate
- * @returns boolean indicating if config is valid
+ * Environment variable validation for runtime safety
  */
-export function isValidConfig(config: NetworkConfig): boolean {
-  return config.chainId > 0 && config.rpcUrl.startsWith('https://');
-}
-
-export default {
-  network: MAINNET_CONFIG,
-  assets: SUPPORTED_ASSETS,
-  validator: isValidConfig,
+export const getEnv = (key: string): string => {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`missing required environment variable: ${key}`);
+  }
+  return value;
 };
+
+export const DEFAULT_GAS_MULTIPLIER = 1.2;
+export const MAX_BLOCK_LOOKBACK = 1000;
