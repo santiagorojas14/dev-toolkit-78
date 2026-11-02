@@ -1,41 +1,33 @@
 import { BigNumber } from 'ethers';
 
 /**
- * Converts wei string to formatted token decimal string
+ * Formats wei values to human-readable strings
  */
-export const formatTokenAmount = (amount: string, decimals: number = 18): string => {
-  const bn = BigNumber.from(amount);
+export const formatCryptoValue = (value: string | bigint, decimals: number = 18): string => {
+  const bn = BigNumber.from(value);
   const divisor = BigNumber.from(10).pow(decimals);
-  return (bn.div(divisor)).toString() + '.' + (bn.mod(divisor)).toString().padStart(decimals, '0');
+  return (bn.div(divisor)).toString() + '.' + (bn.mod(divisor).toString().padStart(decimals, '0').slice(0, 4));
 };
 
 /**
- * Calculates slippage-adjusted minimum output amount
+ * Validates checksummed address format
  */
-export const calculateMinOutput = (amountIn: string, slippageBps: number): string => {
-  const bn = BigNumber.from(amountIn);
-  const slippageFactor = 10000 - slippageBps;
-  return bn.mul(slippageFactor).div(10000).toString();
+export const isValidAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
 
 /**
- * Truncates ethereum addresses for UI display
+ * Calculates slippage tolerance for trade execution
  */
-export const shortenAddress = (address: string): string => {
-  if (!address) return '';
-  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+export const calculateSlippage = (amount: bigint, percent: number): bigint => {
+  const factor = BigInt(Math.floor(percent * 100));
+  return (amount * factor) / 10000n;
 };
 
 /**
- * Delay execution for retry logic or rate limiting
+ * Type guard for numeric inputs in crypto calculations
  */
-export const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-/**
- * Safely parses transaction errors
- */
-export const parseContractError = (error: any): string => {
-  return error?.data?.message || error?.message || 'unknown transaction error';
+export const isNumeric = (value: unknown): value is string | number | bigint => {
+  if (typeof value === 'string') return !isNaN(Number(value));
+  return typeof value === 'number' || typeof value === 'bigint';
 };
