@@ -1,35 +1,37 @@
-export interface ChainConfig {
-  rpcUrl: string;
-  chainId: number;
-  retryAttempts: number;
-  timeoutMs: number;
-}
+import { z } from 'zod';
 
-export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
-  mainnet: {
-    rpcUrl: 'https://eth-mainnet.alchemyapi.io/v2/json-rpc',
-    chainId: 1,
-    retryAttempts: 3,
-    timeoutMs: 5000,
-  },
-  polygon: {
-    rpcUrl: 'https://polygon-rpc.com',
-    chainId: 137,
-    retryAttempts: 5,
-    timeoutMs: 8000,
-  },
+const ConfigSchema = z.object({
+  rpcUrl: z.string().url(),
+  chainId: z.number().int().positive(),
+  timeoutMs: z.number().default(5000),
+  retryCount: z.number().default(3),
+});
+
+type Config = z.infer<typeof ConfigSchema>;
+
+const defaults: Config = {
+  rpcUrl: 'https://mainnet.infura.io/v3/default',
+  chainId: 1,
+  timeoutMs: 5000,
+  retryCount: 3,
 };
 
 /**
- * Environment variable validation for runtime safety
+ * Merges environment variables with hardcoded defaults
  */
-export const getEnv = (key: string): string => {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`missing required environment variable: ${key}`);
-  }
-  return value;
-};
+export const loadConfig = (env: Record<string, string | undefined>): Config => {
+  const rawConfig = {
+    rpcUrl: env.RPC_URL ?? defaults.rpcUrl,
+    chainId: env.CHAIN_ID ? parseInt(env.CHAIN_ID, 10) : defaults.chainId,
+    timeoutMs: env.TIMEOUT_MS ? parseInt(env.TIMEOUT_MS, 10) : defaults.timeoutMs,
+    retryCount: env.RETRY_COUNT ? parseInt(env.RETRY_COUNT, 10) : defaults.retryCount,
+  };
 
-export const DEFAULT_GAS_MULTIPLIER = 1.2;
-export const MAX_BLOCK_LOOKBACK = 1000;
+  const result = ConfigSchema.safeParse(rawConfig);
+
+  if (!result.success) {
+    throw new Error(`Invalid configuration: ${result.error.message}`);
+  }
+
+  return result.data;
+};
