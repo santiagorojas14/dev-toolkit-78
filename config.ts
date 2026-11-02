@@ -1,37 +1,51 @@
-import { z } from 'zod';
+export interface CryptoConfig {
+  network: 'mainnet' | 'testnet' | 'devnet';
+  rpcUrl: string;
+  chainId: number;
+  gasPriceGwei: number;
+  maxRetries: number;
+  timeoutMs: number;
+  enableLogging: boolean;
+}
 
-const ConfigSchema = z.object({
-  rpcUrl: z.string().url(),
-  chainId: z.number().int().positive(),
-  timeoutMs: z.number().default(5000),
-  retryCount: z.number().default(3),
-});
-
-type Config = z.infer<typeof ConfigSchema>;
-
-const defaults: Config = {
-  rpcUrl: 'https://mainnet.infura.io/v3/default',
+const DEFAULT_CONFIG: CryptoConfig = {
+  network: 'mainnet',
+  rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/demo',
   chainId: 1,
-  timeoutMs: 5000,
-  retryCount: 3,
+  gasPriceGwei: 20,
+  maxRetries: 3,
+  timeoutMs: 10000,
+  enableLogging: false,
 };
 
 /**
- * Merges environment variables with hardcoded defaults
+ * Loads crypto toolkit configuration by merging environment variables,
+ * default values, and optional explicit overrides.
  */
-export const loadConfig = (env: Record<string, string | undefined>): Config => {
-  const rawConfig = {
-    rpcUrl: env.RPC_URL ?? defaults.rpcUrl,
-    chainId: env.CHAIN_ID ? parseInt(env.CHAIN_ID, 10) : defaults.chainId,
-    timeoutMs: env.TIMEOUT_MS ? parseInt(env.TIMEOUT_MS, 10) : defaults.timeoutMs,
-    retryCount: env.RETRY_COUNT ? parseInt(env.RETRY_COUNT, 10) : defaults.retryCount,
-  };
+export function loadConfig(overrides: Partial<CryptoConfig> = {}): CryptoConfig {
+  const envConfig: Partial<CryptoConfig> = {};
 
-  const result = ConfigSchema.safeParse(rawConfig);
-
-  if (!result.success) {
-    throw new Error(`Invalid configuration: ${result.error.message}`);
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.CRYPTO_RPC_URL) {
+      envConfig.rpcUrl = process.env.CRYPTO_RPC_URL;
+    }
+    if (process.env.CRYPTO_CHAIN_ID) {
+      const parsedId = parseInt(process.env.CRYPTO_CHAIN_ID, 10);
+      if (!isNaN(parsedId)) {
+        envConfig.chainId = parsedId;
+      }
+    }
+    if (process.env.CRYPTO_NETWORK) {
+      const net = process.env.CRYPTO_NETWORK.toLowerCase();
+      if (net === 'mainnet' || net === 'testnet' || net === 'devnet') {
+        envConfig.network = net;
+      }
+    }
   }
 
-  return result.data;
-};
+  return {
+    ...DEFAULT_CONFIG,
+    ...envConfig,
+    ...overrides,
+  };
+}
