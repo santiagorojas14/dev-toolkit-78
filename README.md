@@ -1,46 +1,50 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 # dev-toolkit-78
 
-A high-performance TypeScript utility suite designed for rapid integration with EVM-compatible chains. It simplifies complex blockchain interactions, allowing developers to focus on application logic rather than low-level RPC plumbing.
+`dev-toolkit-78` is a lightweight TypeScript utility library designed for seamless cross-chain address validation, gas estimation, and RPC node failover management. It streamlines core Web3 developer workflows across EVM and Solana ecosystems with zero heavy external dependencies.
 
 ## Features
 
-*   **Robust RPC Provider Wrapper:** Automated retry logic and automatic failover for multiple node endpoints.
-*   **Type-Safe Transaction Builder:** Pre-configured decorators for common contract interactions using Ethers v6 patterns.
-*   **Encrypted Keyring Manager:** Secure local storage utilities for managing ephemeral test accounts during development.
-*   **Gas Estimation Engine:** Optimized algorithms for real-time fee calculation to prevent transaction drops.
+- **Multi-Chain Address Normalization:** Validate and format public keys across Ethereum (EIP-55 checksum), Solana, and Bitcoin formats with strict type guarantees.
+- **Smart RPC Failover:** Automatic provider switching with health check caching to eliminate downtime caused by rate limits or node degradation.
+- **EIP-1559 Gas Estimator:** Real-time priority fee calculations parsed directly from block headers to prevent stuck transactions.
+- **Compact Payload Decoders:** Lightweight utilities for parsing raw transaction logs without importing massive full-node SDKs.
 
 ## Installation
 
-Install the package via npm or yarn:
+Install via npm or pnpm:
 
 ```bash
 npm install dev-toolkit-78
-# or
-yarn add dev-toolkit-78
 ```
 
-Ensure you have your environment variables configured for your target network in a `.env` file.
+```bash
+pnpm add dev-toolkit-78
+```
 
-## Usage
+## Quick Start
 
 ```typescript
-import { BlockchainClient } from 'dev-toolkit-78';
+import { AddressValidator, RpcResolver } from 'dev-toolkit-78';
 
-const client = new BlockchainClient({
-  rpcUrl: process.env.RPC_ENDPOINT,
-  chainId: 1
+// Set up multi-provider failover
+const provider = new RpcResolver({
+  endpoints: [
+    'https://eth-mainnet.g.alchemy.com/v2/demo',
+    'https://rpc.ankr.com/eth'
+  ],
+  timeoutMs: 2500
 });
 
-async function getBalance(address: string) {
-  const balance = await client.getBalance(address);
-  console.log(`Balance: ${balance.formatted} ETH`);
-}
+async function main() {
+  const targetAddress = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
+  
+  // Validate EVM checksum
+  if (AddressValidator.isValidEVM(targetAddress)) {
+    console.log('Valid EVM Address');
+  }
 
-getBalance('0x742d35Cc6634C0532925a3b844Bc454e4438f44e');
-```
-
-## License
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+  // Fetch optimal gas metrics
+  const feeData = await provider.getOptimalFeeData();
+  console.
