@@ -1,37 +1,60 @@
-interface Transaction {
-  id: string;
+export interface TradeData {
+  price: number;
   amount: number;
-  currency: string;
+  timestamp: number;
+}
+
+export interface MarketSummary {
+  volumeWeightedAveragePrice: number;
+  totalVolume: number;
+  highestPrice: number;
+  lowestPrice: number;
+  tradeCount: number;
 }
 
 /**
- * Validates transaction objects before processing
+ * Calculates the Volume-Weighted Average Price (VWAP) and market summary statistics
+ * for a given set of crypto trade data points.
  */
-const validateTransaction = (tx: unknown): tx is Transaction => {
-  const t = tx as Transaction;
-  return (
-    typeof t?.id === 'string' &&
-    typeof t?.amount === 'number' &&
-    t.amount > 0 &&
-    typeof t?.currency === 'string'
-  );
-};
+export function calculateMarketSummary(trades: TradeData[]): MarketSummary {
+  if (!trades || trades.length === 0) {
+    return {
+      volumeWeightedAveragePrice: 0,
+      totalVolume: 0,
+      highestPrice: 0,
+      lowestPrice: 0,
+      tradeCount: 0,
+    };
+  }
 
-/**
- * Main processing loop with input sanitization
- */
-export const processTransactions = (queue: unknown[]): void => {
-  for (const item of queue) {
-    if (!validateTransaction(item)) {
-      console.error('Invalid transaction payload ignored');
+  let totalVolume = 0;
+  let cumulativePriceVolume = 0;
+  let highestPrice = -Infinity;
+  let lowestPrice = Infinity;
+
+  for (const trade of trades) {
+    if (trade.price <= 0 || trade.amount <= 0) {
       continue;
     }
 
-    try {
-      console.log(`Processing crypto transfer: ${item.id} of ${item.amount} ${item.currency}`);
-      // Additional processing logic for dev-toolkit-78
-    } catch (err) {
-      console.error(`System error during processing: ${item.id}`, err);
+    totalVolume += trade.amount;
+    cumulativePriceVolume += trade.price * trade.amount;
+
+    if (trade.price > highestPrice) {
+      highestPrice = trade.price;
+    }
+    if (trade.price < lowestPrice) {
+      lowestPrice = trade.price;
     }
   }
-};
+
+  const vwap = totalVolume > 0 ? cumulativePriceVolume / totalVolume : 0;
+
+  return {
+    volumeWeightedAveragePrice: Number(vwap.toFixed(8)),
+    totalVolume: Number(totalVolume.toFixed(8)),
+    highestPrice: highestPrice === -Infinity ? 0 : highestPrice,
+    lowestPrice: lowestPrice === Infinity ? 0 : lowestPrice,
+    tradeCount: trades.length,
+  };
+}
