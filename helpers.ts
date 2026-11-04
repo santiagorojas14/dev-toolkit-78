@@ -1,33 +1,62 @@
-import { BigNumber } from 'ethers';
+/**
+ * Utility helpers for formatting and validating cryptocurrency data.
+ */
 
 /**
- * Formats wei values to human-readable strings
+ * Options for formatting a wallet address.
  */
-export const formatCryptoValue = (value: string | bigint, decimals: number = 18): string => {
-  const bn = BigNumber.from(value);
-  const divisor = BigNumber.from(10).pow(decimals);
-  return (bn.div(divisor)).toString() + '.' + (bn.mod(divisor).toString().padStart(decimals, '0').slice(0, 4));
-};
+export interface FormatAddressOptions {
+  /** Number of leading characters to retain (including 0x). Default: 6 */
+  prefixLength?: number;
+  /** Number of trailing characters to retain. Default: 4 */
+  suffixLength?: number;
+}
 
 /**
- * Validates checksummed address format
+ * Truncates an Ethereum or crypto wallet address for display purposes.
+ *
+ * @param address - The full hex address string.
+ * @param options - Configuration for truncation lengths.
+ * @returns The formatted truncated address string.
  */
-export const isValidAddress = (address: string): boolean => {
+export function formatAddress(
+  address: string,
+  options: FormatAddressOptions = {}
+): string {
+  const { prefixLength = 6, suffixLength = 4 } = options;
+
+  if (!address || address.length <= prefixLength + suffixLength) {
+    return address;
+  }
+
+  const prefix = address.slice(0, prefixLength);
+  const suffix = address.slice(-suffixLength);
+  return `${prefix}...${suffix}`;
+}
+
+/**
+ * Converts a Gwei value into Wei BigInt.
+ *
+ * @param gwei - Amount in Gwei (numeric or string representation).
+ * @returns BigInt representation of the value in Wei.
+ */
+export function gweiToWei(gwei: number | string): bigint {
+  const gweiNum = typeof gwei === 'string' ? parseFloat(gwei) : gwei;
+  if (isNaN(gweiNum) || gweiNum < 0) {
+    throw new Error('Invalid Gwei value provided');
+  }
+  const weiMultiplier = 1_000_000_000n;
+  const integerGwei = BigInt(Math.floor(gweiNum));
+  const fractionalGwei = BigInt(Math.round((gweiNum % 1) * 1_000_000_000));
+  return integerGwei * weiMultiplier + fractionalGwei;
+}
+
+/**
+ * Validates whether a given string is a valid Ethereum hex address.
+ *
+ * @param address - String to be checked for hex address format.
+ * @returns Boolean indicating validity of address format.
+ */
+export function isValidEthereumAddress(address: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
-
-/**
- * Calculates slippage tolerance for trade execution
- */
-export const calculateSlippage = (amount: bigint, percent: number): bigint => {
-  const factor = BigInt(Math.floor(percent * 100));
-  return (amount * factor) / 10000n;
-};
-
-/**
- * Type guard for numeric inputs in crypto calculations
- */
-export const isNumeric = (value: unknown): value is string | number | bigint => {
-  if (typeof value === 'string') return !isNaN(Number(value));
-  return typeof value === 'number' || typeof value === 'bigint';
-};
+}
