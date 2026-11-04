@@ -1,46 +1,38 @@
-/**
- * Core interface for crypto exchange asset balances
- */
-export interface AssetBalance {
-  asset: string;
-  free: string;
-  locked: string;
-}
-
-/**
- * Represents a standard order execution event
- */
-export interface OrderExecution {
-  orderId: number;
+export interface CryptoPrice {
   symbol: string;
   price: number;
-  quantity: number;
-  side: 'BUY' | 'SELL';
   timestamp: number;
+  source: string;
+}
+
+export interface MarketStats {
+  volume24h: number;
+  marketCap: number;
+  changePercent: number;
 }
 
 /**
- * WebSocket event structure for market data
+ * Normalizes raw API data into standardized crypto interfaces
  */
-export type MarketEvent = {
-  type: 'ticker' | 'trade';
-  payload: Record<string, unknown>;
-  sequence: number;
+export function formatCryptoData(raw: any): CryptoPrice {
+  if (!raw.symbol || typeof raw.price !== 'number') {
+    throw new Error('Invalid crypto data payload structure');
+  }
+
+  return {
+    symbol: raw.symbol.toUpperCase(),
+    price: parseFloat(raw.price.toFixed(8)),
+    timestamp: Date.now(),
+    source: raw.provider || 'unknown'
+  };
+}
+
+/**
+ * Calculates percentage change between two price points
+ */
+export const calculateDelta = (current: number, previous: number): number => {
+  if (previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
 };
 
-/**
- * Generic configuration for API rate limiting
- */
-export interface RateLimitConfig {
-  windowMs: number;
-  maxRequests: number;
-}
-
-/**
- * Error type for standardized API responses
- */
-export interface CryptoApiError {
-  code: number;
-  message: string;
-  retryable: boolean;
-}
+export type PriceUpdateCallback = (data: CryptoPrice) => void;
