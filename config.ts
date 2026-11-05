@@ -1,33 +1,49 @@
-import { readFileSync } from 'fs';
+export type NetworkType = 'mainnet' | 'testnet' | 'devnet';
 
-interface AppConfig {
+export interface CryptoConfig {
+  network: NetworkType;
   rpcUrl: string;
-  chainId: number;
-  timeout: number;
+  timeoutMs: number;
+  maxRetries: number;
+  gasLimitMultiplier: number;
+  enableLogging: boolean;
 }
 
-const DEFAULT_CONFIG: AppConfig = {
-  rpcUrl: 'https://mainnet.infura.io/v3/default',
-  chainId: 1,
-  timeout: 5000
+export type PartialCryptoConfig = Partial<CryptoConfig>;
+
+const DEFAULT_CONFIG: CryptoConfig = {
+  network: 'mainnet',
+  rpcUrl: 'https://rpc.mainnet.eth.internal',
+  timeoutMs: 10000,
+  maxRetries: 3,
+  gasLimitMultiplier: 1.15,
+  enableLogging: false,
 };
 
 /**
- * loads configuration from json file with defaults
+ * Merges partial user configuration with default crypto network settings.
  */
-export function loadConfig(path?: string): AppConfig {
-  if (!path) return DEFAULT_CONFIG;
-
-  try {
-    const rawData = readFileSync(path, 'utf-8');
-    const parsed: Partial<AppConfig> = JSON.parse(rawData);
-    
-    return {
-      ...DEFAULT_CONFIG,
-      ...parsed
-    };
-  } catch (err) {
-    console.error('failed to load config, using defaults');
-    return DEFAULT_CONFIG;
+export function loadConfig(userConfig?: PartialCryptoConfig): CryptoConfig {
+  if (!userConfig) {
+    return { ...DEFAULT_CONFIG };
   }
+
+  const mergedConfig: CryptoConfig = {
+    ...DEFAULT_CONFIG,
+    ...userConfig,
+  };
+
+  if (mergedConfig.timeoutMs <= 0) {
+    throw new Error('Timeout must be a positive integer');
+  }
+
+  if (mergedConfig.maxRetries < 0) {
+    throw new Error('Max retries cannot be negative');
+  }
+
+  if (mergedConfig.gasLimitMultiplier < 1.0) {
+    throw new Error('Gas limit multiplier must be at least 1.0');
+  }
+
+  return mergedConfig;
 }
