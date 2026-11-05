@@ -1,38 +1,31 @@
-export interface CryptoPrice {
-  symbol: string;
-  price: number;
+export interface TransactionPayload {
+  id: string;
+  amount: number;
+  asset: 'BTC' | 'ETH' | 'SOL';
   timestamp: number;
-  source: string;
 }
 
-export interface MarketStats {
-  volume24h: number;
-  marketCap: number;
-  changePercent: number;
-}
+export const isValidPayload = (data: any): data is TransactionPayload => {
+  if (typeof data !== 'object' || data === null) return false;
 
-/**
- * Normalizes raw API data into standardized crypto interfaces
- */
-export function formatCryptoData(raw: any): CryptoPrice {
-  if (!raw.symbol || typeof raw.price !== 'number') {
-    throw new Error('Invalid crypto data payload structure');
-  }
+  const isAmountValid = typeof data.amount === 'number' && data.amount > 0;
+  const isAssetValid = ['BTC', 'ETH', 'SOL'].includes(data.asset);
+  const isIdValid = typeof data.id === 'string' && data.id.length > 0;
 
-  return {
-    symbol: raw.symbol.toUpperCase(),
-    price: parseFloat(raw.price.toFixed(8)),
-    timestamp: Date.now(),
-    source: raw.provider || 'unknown'
-  };
-}
-
-/**
- * Calculates percentage change between two price points
- */
-export const calculateDelta = (current: number, previous: number): number => {
-  if (previous === 0) return 0;
-  return ((current - previous) / previous) * 100;
+  return isAmountValid && isAssetValid && isIdValid;
 };
 
-export type PriceUpdateCallback = (data: CryptoPrice) => void;
+export const processCryptoQueue = (queue: any[]): TransactionPayload[] => {
+  const validTransactions: TransactionPayload[] = [];
+
+  for (const item of queue) {
+    // validate integrity of incoming crypto payload
+    if (isValidPayload(item)) {
+      validTransactions.push(item);
+    } else {
+      console.warn(`invalid transaction skipped: ${item?.id || 'unknown'}`);
+    }
+  }
+
+  return validTransactions;
+};
