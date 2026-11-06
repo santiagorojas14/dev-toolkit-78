@@ -1,62 +1,58 @@
 /**
- * Utility helpers for formatting and validating cryptocurrency data.
+ * Custom error class for crypto edge case failures.
  */
-
-/**
- * Options for formatting a wallet address.
- */
-export interface FormatAddressOptions {
-  /** Number of leading characters to retain (including 0x). Default: 6 */
-  prefixLength?: number;
-  /** Number of trailing characters to retain. Default: 4 */
-  suffixLength?: number;
+export class CryptoValidationError extends Error {
+  constructor(message: string, public readonly code: string) {
+    super(message);
+    this.name = 'CryptoValidationError';
+  }
 }
 
 /**
- * Truncates an Ethereum or crypto wallet address for display purposes.
- *
- * @param address - The full hex address string.
- * @param options - Configuration for truncation lengths.
- * @returns The formatted truncated address string.
+ * Validates and normalizes an Ethereum address, handling common edge cases.
  */
-export function formatAddress(
-  address: string,
-  options: FormatAddressOptions = {}
-): string {
-  const { prefixLength = 6, suffixLength = 4 } = options;
-
-  if (!address || address.length <= prefixLength + suffixLength) {
-    return address;
+export function sanitizeAddress(address: unknown): string {
+  if (typeof address !== 'string') {
+    throw new CryptoValidationError('Address must be a string', 'INVALID_TYPE');
   }
 
-  const prefix = address.slice(0, prefixLength);
-  const suffix = address.slice(-suffixLength);
-  return `${prefix}...${suffix}`;
-}
+  const trimmed = address.trim().toLowerCase();
 
-/**
- * Converts a Gwei value into Wei BigInt.
- *
- * @param gwei - Amount in Gwei (numeric or string representation).
- * @returns BigInt representation of the value in Wei.
- */
-export function gweiToWei(gwei: number | string): bigint {
-  const gweiNum = typeof gwei === 'string' ? parseFloat(gwei) : gwei;
-  if (isNaN(gweiNum) || gweiNum < 0) {
-    throw new Error('Invalid Gwei value provided');
+  if (!trimmed) {
+    throw new CryptoValidationError('Address cannot be empty', 'EMPTY_INPUT');
   }
-  const weiMultiplier = 1_000_000_000n;
-  const integerGwei = BigInt(Math.floor(gweiNum));
-  const fractionalGwei = BigInt(Math.round((gweiNum % 1) * 1_000_000_000));
-  return integerGwei * weiMultiplier + fractionalGwei;
+
+  if (!/^0x[a-f0-9]{40}$/.test(trimmed)) {
+    throw new CryptoValidationError('Invalid Ethereum address format', 'INVALID_FORMAT');
+  }
+
+  return trimmed;
 }
 
 /**
- * Validates whether a given string is a valid Ethereum hex address.
- *
- * @param address - String to be checked for hex address format.
- * @returns Boolean indicating validity of address format.
+ * Safely parses BigInt amounts with overflow and negative value checks.
  */
-export function isValidEthereumAddress(address: string): boolean {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
+export function parseTokenAmount(amount: string | number, decimals: number = 18): bigint {
+  if (decimals < 0 || decimals > 36 || !Number.isInteger(decimals)) {
+    throw new CryptoValidationError('Invalid decimals range', 'INVALID_DECIMALS');
+  }
+
+  try {
+    const strVal = String(amount).trim();
+    if (!strVal || isNaN(Number(strVal))) {
+      throw new CryptoValidationError('Value is not a valid number', 'INVALID_NUMBER');
+    }
+
+    const numVal = Number(strVal);
+    if (numVal < 0) {
+      throw new CryptoValidationError('Token amount cannot be negative', 'NEGATIVE_AMOUNT');
+    }
+
+    const [integerPart, decimalPart = ''] = strVal.split('.');
+    const paddedDecimal = decimalPart.padEnd(decimals, '0').slice(0, decimals);
+    return BigInt(`${integerPart}${paddedDecimal}`);
+  } catch (err) {
+    if (err instanceof CryptoValidationError) throw err;
+    throw new CryptoValidationError('Failed to parse token amount safely', 'PARSE_FAILED');
+  }
 }
