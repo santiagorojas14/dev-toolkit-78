@@ -1,32 +1,29 @@
-import * as winston from 'winston';
-import 'winston-daily-rotate-file';
+export interface RetryOptions {
+  retries: number;
+  delay: number;
+}
 
 /**
- * Configure logger with daily rotation for crypto services
- * Retains logs for 14 days and limits size to 20MB per file
+ * executes async operation with exponential backoff
  */
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.DailyRotateFile({
-      dirname: 'logs',
-      filename: 'dev-toolkit-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d'
-    })
-  ]
-});
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = { retries: 3, delay: 1000 }
+): Promise<T> {
+  let lastError: unknown;
 
-export interface LogMetadata {
-  asset?: string;
-  txHash?: string;
-  status: 'pending' | 'success' | 'failed';
-  [key: string]: any;
+  for (let i = 0; i <= options.retries; i++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (i < options.retries) {
+        await new Promise((resolve) => 
+          setTimeout(resolve, options.delay * Math.pow(2, i))
+        );
+      }
+    }
+  }
+
+  throw lastError;
 }
