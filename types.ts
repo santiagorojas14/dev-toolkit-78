@@ -1,31 +1,55 @@
-export interface TransactionPayload {
-  id: string;
-  amount: number;
-  asset: 'BTC' | 'ETH' | 'SOL';
-  timestamp: number;
+/**
+ * Core interface for crypto exchange asset balances
+ */
+export interface AssetBalance {
+  asset: string;
+  free: string;
+  locked: string;
 }
 
-export const isValidPayload = (data: any): data is TransactionPayload => {
-  if (typeof data !== 'object' || data === null) return false;
+/**
+ * Configuration for API request signing
+ */
+export interface RequestSignature {
+  timestamp: number;
+  signature: string;
+  apiKey: string;
+}
 
-  const isAmountValid = typeof data.amount === 'number' && data.amount > 0;
-  const isAssetValid = ['BTC', 'ETH', 'SOL'].includes(data.asset);
-  const isIdValid = typeof data.id === 'string' && data.id.length > 0;
+/**
+ * Normalized market order structure for dev-toolkit-78
+ */
+export interface MarketOrder {
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  type: 'MARKET' | 'LIMIT';
+  quantity: number;
+  price?: number;
+  nonce: bigint;
+}
 
-  return isAmountValid && isAssetValid && isIdValid;
-};
+/**
+ * Standardized response wrapper for service operations
+ */
+export interface ServiceResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+  };
+}
 
-export const processCryptoQueue = (queue: any[]): TransactionPayload[] => {
-  const validTransactions: TransactionPayload[] = [];
+/**
+ * Type alias for supported order execution statuses
+ */
+export type OrderStatus = 'PENDING' | 'FILLED' | 'CANCELED' | 'REJECTED';
 
-  for (const item of queue) {
-    // validate integrity of incoming crypto payload
-    if (isValidPayload(item)) {
-      validTransactions.push(item);
-    } else {
-      console.warn(`invalid transaction skipped: ${item?.id || 'unknown'}`);
-    }
-  }
-
-  return validTransactions;
+/**
+ * Container for cryptographic keys used in transaction signing
+ */
+export type KeyPair = {
+  publicKey: string;
+  privateKey: string;
+  curve: 'ed25519' | 'secp256k1';
 };
