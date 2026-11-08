@@ -1,37 +1,47 @@
-export class CryptoError extends Error {
-  constructor(public message: string, public code: string, public context?: any) {
-    super(message);
-    this.name = 'CryptoError';
-  }
+/**
+ * Represents a standard blockchain transaction result
+ */
+export interface TxResult {
+  hash: string;
+  status: 'confirmed' | 'failed' | 'pending';
+  timestamp: number;
 }
 
-export const validateTransaction = (tx: any): boolean => {
-  if (!tx || typeof tx !== 'object') {
-    throw new CryptoError('Invalid transaction structure', 'ERR_INVALID_TX');
-  }
-  if (!tx.hash || tx.hash.length < 64) {
-    throw new CryptoError('Missing or malformed hash', 'ERR_INVALID_HASH', { hash: tx.hash });
-  }
-  return true;
+/**
+ * Formats a raw crypto amount to a readable string
+ * @param amount - The raw BigInt representation
+ * @param decimals - Token decimal precision
+ */
+export const formatUnits = (amount: bigint, decimals: number = 18): string => {
+  const divisor = BigInt(10 ** decimals);
+  const integerPart = amount / divisor;
+  const fractionalPart = amount % divisor;
+
+  return `${integerPart}.${fractionalPart.toString().padStart(decimals, '0')}`;
 };
 
-export const safeParseBigInt = (value: string): bigint => {
-  try {
-    return BigInt(value);
-  } catch (err) {
-    throw new CryptoError('Failed to parse numeric value', 'ERR_PARSE_FAILURE', { value });
-  }
+/**
+ * Validates a standard hexadecimal wallet address
+ * @param address - The string address to check
+ */
+export const isValidAddress = (address: string): boolean => {
+  const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+  return addressRegex.test(address);
 };
 
-export const withErrorHandling = async <T>(fn: () => Promise<T>): Promise<T | null> => {
-  try {
-    return await fn();
-  } catch (err) {
-    if (err instanceof CryptoError) {
-      console.error(`[${err.code}]: ${err.message}`, err.context);
-    } else {
-      console.error('Unexpected internal failure', err);
-    }
-    return null;
-  }
+/**
+ * Calculates the gas fee based on provided parameters
+ * @param gasLimit - Maximum units of gas
+ * @param gasPrice - Price per unit in Wei
+ */
+export const calculateTxFee = (gasLimit: bigint, gasPrice: bigint): bigint => {
+  return gasLimit * gasPrice;
+};
+
+/**
+ * Safely parses a potential blockchain error message
+ */
+export const parseBlockchainError = (err: unknown): string => {
+  if (err instanceof Error) return err.message;
+  return 'unknown transaction failure';
 };
