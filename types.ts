@@ -1,55 +1,45 @@
-/**
- * Core interface for crypto exchange asset balances
- */
-export interface AssetBalance {
-  asset: string;
-  free: string;
-  locked: string;
-}
-
-/**
- * Configuration for API request signing
- */
-export interface RequestSignature {
+export interface Transaction {
+  id: string;
+  amount: number;
+  currency: 'BTC' | 'ETH' | 'SOL';
   timestamp: number;
-  signature: string;
-  apiKey: string;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  error?: string;
 }
 
 /**
- * Normalized market order structure for dev-toolkit-78
+ * schema validation for incoming crypto payloads
  */
-export interface MarketOrder {
-  symbol: string;
-  side: 'BUY' | 'SELL';
-  type: 'MARKET' | 'LIMIT';
-  quantity: number;
-  price?: number;
-  nonce: bigint;
-}
+export const validateTransaction = (tx: any): ValidationResult => {
+  if (typeof tx.id !== 'string' || tx.id.length < 8) {
+    return { isValid: false, error: 'invalid transaction identifier' };
+  }
 
-/**
- * Standardized response wrapper for service operations
- */
-export interface ServiceResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-  };
-}
+  if (typeof tx.amount !== 'number' || tx.amount <= 0) {
+    return { isValid: false, error: 'positive numerical amount required' };
+  }
 
-/**
- * Type alias for supported order execution statuses
- */
-export type OrderStatus = 'PENDING' | 'FILLED' | 'CANCELED' | 'REJECTED';
+  const validCurrencies = ['BTC', 'ETH', 'SOL'];
+  if (!validCurrencies.includes(tx.currency)) {
+    return { isValid: false, error: 'unsupported crypto asset type' };
+  }
 
-/**
- * Container for cryptographic keys used in transaction signing
- */
-export type KeyPair = {
-  publicKey: string;
-  privateKey: string;
-  curve: 'ed25519' | 'secp256k1';
+  return { isValid: true };
+};
+
+export const processLoop = (queue: any[]): void => {
+  for (const item of queue) {
+    const validation = validateTransaction(item);
+
+    if (!validation.isValid) {
+      console.error(`skipping invalid tx: ${validation.error}`);
+      continue;
+    }
+
+    // perform core business logic here
+    console.log(`processing validated transaction: ${item.id}`);
+  }
 };
