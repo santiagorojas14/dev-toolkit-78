@@ -1,58 +1,37 @@
-/**
- * Custom error class for crypto edge case failures.
- */
-export class CryptoValidationError extends Error {
-  constructor(message: string, public readonly code: string) {
+export class CryptoError extends Error {
+  constructor(public message: string, public code: string, public context?: any) {
     super(message);
-    this.name = 'CryptoValidationError';
+    this.name = 'CryptoError';
   }
 }
 
-/**
- * Validates and normalizes an Ethereum address, handling common edge cases.
- */
-export function sanitizeAddress(address: unknown): string {
-  if (typeof address !== 'string') {
-    throw new CryptoValidationError('Address must be a string', 'INVALID_TYPE');
+export const validateTransaction = (tx: any): boolean => {
+  if (!tx || typeof tx !== 'object') {
+    throw new CryptoError('Invalid transaction structure', 'ERR_INVALID_TX');
   }
-
-  const trimmed = address.trim().toLowerCase();
-
-  if (!trimmed) {
-    throw new CryptoValidationError('Address cannot be empty', 'EMPTY_INPUT');
+  if (!tx.hash || tx.hash.length < 64) {
+    throw new CryptoError('Missing or malformed hash', 'ERR_INVALID_HASH', { hash: tx.hash });
   }
+  return true;
+};
 
-  if (!/^0x[a-f0-9]{40}$/.test(trimmed)) {
-    throw new CryptoValidationError('Invalid Ethereum address format', 'INVALID_FORMAT');
-  }
-
-  return trimmed;
-}
-
-/**
- * Safely parses BigInt amounts with overflow and negative value checks.
- */
-export function parseTokenAmount(amount: string | number, decimals: number = 18): bigint {
-  if (decimals < 0 || decimals > 36 || !Number.isInteger(decimals)) {
-    throw new CryptoValidationError('Invalid decimals range', 'INVALID_DECIMALS');
-  }
-
+export const safeParseBigInt = (value: string): bigint => {
   try {
-    const strVal = String(amount).trim();
-    if (!strVal || isNaN(Number(strVal))) {
-      throw new CryptoValidationError('Value is not a valid number', 'INVALID_NUMBER');
-    }
-
-    const numVal = Number(strVal);
-    if (numVal < 0) {
-      throw new CryptoValidationError('Token amount cannot be negative', 'NEGATIVE_AMOUNT');
-    }
-
-    const [integerPart, decimalPart = ''] = strVal.split('.');
-    const paddedDecimal = decimalPart.padEnd(decimals, '0').slice(0, decimals);
-    return BigInt(`${integerPart}${paddedDecimal}`);
+    return BigInt(value);
   } catch (err) {
-    if (err instanceof CryptoValidationError) throw err;
-    throw new CryptoValidationError('Failed to parse token amount safely', 'PARSE_FAILED');
+    throw new CryptoError('Failed to parse numeric value', 'ERR_PARSE_FAILURE', { value });
   }
-}
+};
+
+export const withErrorHandling = async <T>(fn: () => Promise<T>): Promise<T | null> => {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof CryptoError) {
+      console.error(`[${err.code}]: ${err.message}`, err.context);
+    } else {
+      console.error('Unexpected internal failure', err);
+    }
+    return null;
+  }
+};
