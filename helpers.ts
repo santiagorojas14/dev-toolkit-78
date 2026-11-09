@@ -1,47 +1,56 @@
 /**
- * Represents a standard blockchain transaction result
+ * Utility helper functions for crypto and blockchain data operations.
  */
-export interface TxResult {
-  hash: string;
-  status: 'confirmed' | 'failed' | 'pending';
-  timestamp: number;
+
+/**
+ * Truncates an Ethereum/crypto address for UI display.
+ */
+export function truncateAddress(address: string, startChars = 6, endChars = 4): string {
+  if (!address || address.length <= startChars + endChars) {
+    return address;
+  }
+  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
 }
 
 /**
- * Formats a raw crypto amount to a readable string
- * @param amount - The raw BigInt representation
- * @param decimals - Token decimal precision
+ * Converts a human-readable token amount string to atomic units (e.g. Wei).
  */
-export const formatUnits = (amount: bigint, decimals: number = 18): string => {
-  const divisor = BigInt(10 ** decimals);
-  const integerPart = amount / divisor;
-  const fractionalPart = amount % divisor;
-
-  return `${integerPart}.${fractionalPart.toString().padStart(decimals, '0')}`;
-};
+export function toAtomicUnits(amount: string | number, decimals = 18): bigint {
+  const [integerPart, decimalPart = ''] = amount.toString().split('.');
+  const paddedDecimal = decimalPart.padEnd(decimals, '0').slice(0, decimals);
+  return BigInt(`${integerPart}${paddedDecimal}`);
+}
 
 /**
- * Validates a standard hexadecimal wallet address
- * @param address - The string address to check
+ * Converts an atomic unit amount to a human-readable decimal string.
  */
-export const isValidAddress = (address: string): boolean => {
-  const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-  return addressRegex.test(address);
-};
+export function fromAtomicUnits(amount: bigint | string, decimals = 18): string {
+  const str = amount.toString().padStart(decimals + 1, '0');
+  const integerPart = str.slice(0, str.length - decimals);
+  const decimalPart = str.slice(str.length - decimals).replace(/0+$/, '');
+  return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+}
 
 /**
- * Calculates the gas fee based on provided parameters
- * @param gasLimit - Maximum units of gas
- * @param gasPrice - Price per unit in Wei
+ * Validates whether a given string matches standard 32-byte hex hash format.
  */
-export const calculateTxFee = (gasLimit: bigint, gasPrice: bigint): bigint => {
-  return gasLimit * gasPrice;
-};
+export function isValidTxHash(hash: string): boolean {
+  return /^0x[a-fA-F0-9]{64}$/.test(hash);
+}
 
 /**
- * Safely parses a potential blockchain error message
+ * Calculates minimum and maximum expected amounts given slippage in basis points.
  */
-export const parseBlockchainError = (err: unknown): string => {
-  if (err instanceof Error) return err.message;
-  return 'unknown transaction failure';
-};
+export function calculateSlippageBounds(
+  amount: bigint,
+  slippageBps: number
+): { minAmount: bigint; maxAmount: bigint } {
+  const bpsDenominator = 10000n;
+  const bpsFactor = BigInt(slippageBps);
+  const delta = (amount * bpsFactor) / bpsDenominator;
+
+  return {
+    minAmount: amount - delta,
+    maxAmount: amount + delta,
+  };
+}
