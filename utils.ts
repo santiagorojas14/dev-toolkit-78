@@ -1,63 +1,34 @@
-import { createHash } from 'crypto';
-
-interface CacheOptions {
-  maxSize?: number;
-  ttlMs?: number;
-}
-
-interface CacheEntry<T> {
-  value: T;
-  expiresAt: number;
-}
+import * as winston from 'winston';
+import 'winston-daily-rotate-file';
 
 /**
- * High-performance LRU cache specifically optimized for frequent
- * cryptographic hash operations in high-throughput RPC pipelines.
+ * Crypto service logger configuration
+ * rotating logs daily for audit compliance
  */
-export class FastHashCache {
-  private cache = new Map<string, CacheEntry<string>>();
-  private readonly maxSize: number;
-  private readonly ttlMs: number;
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      filename: 'logs/dev-toolkit-78-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
 
-  constructor(options: CacheOptions = {}) {
-    this.maxSize = options.maxSize ?? 5000;
-    this.ttlMs = options.ttlMs ?? 60000;
-  }
-
-  public getSHA256(data: string): string {
-    const now = Date.now();
-    const cached = this.cache.get(data);
-
-    if (cached && cached.expiresAt > now) {
-      // Move to end of Map to maintain LRU eviction order
-      this.cache.delete(data);
-      this.cache.set(data, cached);
-      return cached.value;
-    }
-
-    // Evict oldest entry if capacity exceeded
-    if (this.cache.size >= this.maxSize) {
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.cache.delete(oldestKey);
-      }
-    }
-
-    const hash = createHash('sha256').update(data).digest('hex');
-    this.cache.set(data, { value: hash, expiresAt: now + this.ttlMs });
-    return hash;
-  }
-
-  public pruneExpired(): void {
-    const now = Date.now();
-    for (const [key, entry] of this.cache.entries()) {
-      if (entry.expiresAt <= now) {
-        this.cache.delete(key);
-      }
-    }
-  }
-
-  public get size(): number {
-    return this.cache.size;
-  }
+export interface LogMetadata {
+  txHash?: string;
+  network?: 'mainnet' | 'testnet';
+  errorCode?: number;
 }
+
+export const logError = (message: string, meta: LogMetadata) => {
+  logger.error(message, meta);
+};
