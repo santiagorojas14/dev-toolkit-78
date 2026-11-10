@@ -1,49 +1,35 @@
-export interface TokenAmountOptions {
-  decimals?: number;
-  symbol?: string;
-  compact?: boolean;
-}
+import { BigNumber } from 'ethers';
 
 /**
- * Truncates a crypto wallet address for display purposes.
- * Example: 0x1234567890abcdef1234567890abcdef12345678 -> 0x1234...5678
+ * Formats token amount from raw BigNumber to human-readable string
  */
-export function truncateAddress(address: string, startChars = 6, endChars = 4): string {
-  if (!address) return '';
-  if (address.length <= startChars + endChars) return address;
-  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
-}
+export const formatTokenAmount = (amount: BigNumber, decimals: number): string => {
+  const divisor = BigNumber.from(10).pow(decimals);
+  return (amount.div(divisor)).toString() + '.' + (amount.mod(divisor)).toString().padStart(decimals, '0').slice(0, 4);
+};
 
 /**
- * Converts raw token units (e.g., Wei, Satoshi) to human-readable balance format.
+ * Calculates slippage output based on bps (basis points)
  */
-export function formatTokenBalance(
-  rawAmount: string | bigint,
-  decimals = 18,
-  displayDecimals = 4
-): string {
-  const amountBigInt = typeof rawAmount === 'string' ? BigInt(rawAmount) : rawAmount;
-  const base = BigInt(10);
-  const divisor = base ** BigInt(decimals);
-
-  const integerPart = amountBigInt / divisor;
-  const remainder = amountBigInt % divisor;
-
-  if (remainder === 0n) {
-    return integerPart.toString();
-  }
-
-  const remainderStr = remainder.toString().padStart(decimals, '0');
-  const trimmedRemainder = remainderStr.slice(0, displayDecimals).replace(/0+$/, '');
-
-  return trimmedRemainder.length > 0
-    ? `${integerPart.toString()}.${trimmedRemainder}`
-    : integerPart.toString();
-}
+export const calculateSlippage = (amount: BigNumber, bps: number): BigNumber => {
+  return amount.mul(10000 - bps).div(10000);
+};
 
 /**
- * Validates basic Ethereum address format.
+ * Validates standard crypto wallet address format
  */
-export function isValidEthAddress(address: string): boolean {
+export const isValidAddress = (address: string): boolean => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
-}
+};
+
+/**
+ * Safely parses string to BigNumber with error handling
+ */
+export const safeParseUnits = (value: string, decimals: number): BigNumber => {
+  try {
+    return BigNumber.from(value).mul(BigNumber.from(10).pow(decimals));
+  } catch (err) {
+    console.error('Invalid token conversion:', err);
+    return BigNumber.from(0);
+  }
+};
