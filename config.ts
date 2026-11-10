@@ -1,33 +1,30 @@
-import { readFileSync } from 'fs';
-
-interface AppConfig {
-  rpcUrl: string;
-  chainId: number;
-  retryAttempts: number;
-}
-
-const DEFAULT_CONFIG: AppConfig = {
-  rpcUrl: 'https://mainnet.infura.io/v3/default',
-  chainId: 1,
-  retryAttempts: 3,
-};
+import winston from 'winston';
+import 'winston-daily-rotate-file';
 
 /**
- * Loads environment-based configuration with fallbacks
+ * Logging configuration for dev-toolkit-78
+ * Uses daily file rotation to maintain disk space
  */
-export function loadConfig(path: string = './config.json'): AppConfig {
-  try {
-    const fileContent = readFileSync(path, 'utf-8');
-    const parsed = JSON.parse(fileContent);
-    
-    return {
-      ...DEFAULT_CONFIG,
-      ...parsed,
-    };
-  } catch (error) {
-    console.warn('Configuration file not found, using default values');
-    return { ...DEFAULT_CONFIG };
-  }
-}
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      filename: 'logs/crypto-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
 
-export const config = loadConfig();
+export interface LogMetadata {
+  txHash?: string;
+  pair?: string;
+  error?: unknown;
+}
