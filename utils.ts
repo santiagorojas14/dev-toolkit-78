@@ -1,34 +1,34 @@
-import * as winston from 'winston';
-import 'winston-daily-rotate-file';
-
-/**
- * Crypto service logger configuration
- * rotating logs daily for audit compliance
- */
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.DailyRotateFile({
-      filename: 'logs/dev-toolkit-78-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d'
-    })
-  ]
-});
-
-export interface LogMetadata {
-  txHash?: string;
-  network?: 'mainnet' | 'testnet';
-  errorCode?: number;
+interface TransactionData {
+  id: string;
+  amount: number;
+  asset: string;
 }
 
-export const logError = (message: string, meta: LogMetadata) => {
-  logger.error(message, meta);
+export const validateTransaction = (data: unknown): data is TransactionData => {
+  if (!data || typeof data !== 'object') return false;
+  const { id, amount, asset } = data as any;
+
+  return (
+    typeof id === 'string' && id.length > 0 &&
+    typeof amount === 'number' && amount > 0 &&
+    typeof asset === 'string' && asset.length >= 3
+  );
+};
+
+export const processTransactions = (queue: unknown[]): void => {
+  for (const entry of queue) {
+    if (!validateTransaction(entry)) {
+      console.error('invalid crypto transaction format detected');
+      continue;
+    }
+
+    const { id, amount, asset } = entry;
+    console.log(`processing ${amount} of ${asset} [tx: ${id}]`);
+    
+    try {
+      // Execute crypto bridge logic here
+    } catch (err) {
+      console.error(`execution failed for ${id}:`, err);
+    }
+  }
 };
