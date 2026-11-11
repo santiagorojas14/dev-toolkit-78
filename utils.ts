@@ -1,40 +1,28 @@
-import { BigNumber } from 'ethers';
+export interface RetryOptions {
+  maxAttempts: number;
+  backoffMs: number;
+}
 
 /**
- * Formats raw crypto units to human-readable decimals
+ * executes an async operation with exponential backoff for resilience
  */
-export const formatUnits = (value: string | number, decimals: number = 18): string => {
-  const bigValue = BigNumber.from(value.toString());
-  const divisor = BigNumber.from(10).pow(decimals);
-  
-  const integerPart = bigValue.div(divisor).toString();
-  const fractionalPart = bigValue.mod(divisor).toString().padStart(decimals, '0');
-  
-  return `${integerPart}.${fractionalPart.replace(/0+$/, '') || '0'}`;
-};
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = { maxAttempts: 3, backoffMs: 1000 }
+): Promise<T> {
+  let lastError: any;
 
-/**
- * Sanitizes address strings for uniform comparison
- */
-export const normalizeAddress = (address: string): string => {
-  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-    throw new Error('Invalid crypto address format');
+  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (attempt === options.maxAttempts) break;
+
+      const delay = options.backoffMs * Math.pow(2, attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   }
-  return address.toLowerCase();
-};
 
-/**
- * Calculates percentage change between price points
- */
-export const calculateChange = (current: number, previous: number): number => {
-  if (previous === 0) return 0;
-  return ((current - previous) / previous) * 100;
-};
-
-/**
- * Safely truncates long transaction hashes
- */
-export const truncateHash = (hash: string, start: number = 6, end: number = 4): string => {
-  if (hash.length <= start + end) return hash;
-  return `${hash.slice(0, start)}...${hash.slice(-end)}`;
-};
+  throw lastError;
+}
