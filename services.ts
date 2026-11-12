@@ -1,70 +1,28 @@
-import { RPCConfig, TransactionFeeEstimate } from './types';
+import * as winston from 'winston';
+import 'winston-daily-rotate-file';
 
-export class CryptoRpcService {
-  private primaryUrl: string;
-  private fallbackUrl: string;
-  private timeoutMs: number;
+/**
+ * Logger configuration for crypto event monitoring
+ * Uses daily file rotation to maintain disk health
+ */
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      filename: 'logs/dev-toolkit-78-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
 
-  constructor(config: { primaryUrl: string; fallbackUrl?: string; timeoutMs?: number }) {
-    this.primaryUrl = config.primaryUrl;
-    this.fallbackUrl = config.fallbackUrl || '';
-    this.timeoutMs = config.timeoutMs || 5000;
-  }
-
-  /**
-   * Fetches latest gas price with fallback mechanism
-   */
-  public async getGasPrice(): Promise<bigint> {
-    try {
-      return await this.fetchGasPriceFromUrl(this.primaryUrl);
-    } catch (error) {
-      if (this.fallbackUrl) {
-        console.warn('Primary RPC failed. Switching to fallback provider.');
-        return await this.fetchGasPriceFromUrl(this.fallbackUrl);
-      }
-      throw new Error(`Failed to fetch gas price: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Calculates estimated fee for transactions based on gas limit
-   */
-  public async estimateTxFee(gasLimit: bigint): Promise<{ maxFee: bigint; priorityFee: bigint }> {
-    const baseFee = await this.getGasPrice();
-    const priorityFee = BigInt(2000000000); // 2 Gwei standard tip
-    const maxFee = (baseFee * BigInt(2)) + priorityFee;
-
-    return {
-      maxFee: maxFee * gasLimit,
-      priorityFee: priorityFee * gasLimit,
-    };
-  }
-
-  private async fetchGasPriceFromUrl(url: string): Promise<bigint> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'eth_gasPrice',
-          params: [],
-          id: 1,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-
-      const data = await response.json();
-      return BigInt(data.result);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-}
+export const logCryptoEvent = (event: string, meta: Record<string, any>) => {
+  logger.info(event, { service: 'dev-toolkit-78', ...meta });
+};
