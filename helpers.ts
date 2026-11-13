@@ -1,35 +1,32 @@
 import { BigNumber } from 'ethers';
 
 /**
- * Formats token amount from raw BigNumber to human-readable string
+ * Helper functions for dev-toolkit-78 crypto operations
  */
-export const formatTokenAmount = (amount: BigNumber, decimals: number): string => {
+
+export const formatUnits = (value: string | number | BigNumber, decimals: number = 18): string => {
+  const bn = BigNumber.from(value);
   const divisor = BigNumber.from(10).pow(decimals);
-  return (amount.div(divisor)).toString() + '.' + (amount.mod(divisor)).toString().padStart(decimals, '0').slice(0, 4);
+  const quotient = bn.div(divisor);
+  const remainder = bn.mod(divisor);
+  
+  return `${quotient.toString()}.${remainder.toString().padStart(decimals, '0')}`;
 };
 
-/**
- * Calculates slippage output based on bps (basis points)
- */
-export const calculateSlippage = (amount: BigNumber, bps: number): BigNumber => {
-  return amount.mul(10000 - bps).div(10000);
+export const parseUnits = (value: string, decimals: number = 18): BigNumber => {
+  const [integer, fraction = ''] = value.split('.');
+  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+  return BigNumber.from(integer).mul(BigNumber.from(10).pow(decimals)).add(BigNumber.from(paddedFraction));
 };
 
-/**
- * Validates standard crypto wallet address format
- */
-export const isValidAddress = (address: string): boolean => {
+export const sleep = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+export const validateAddress = (address: string): boolean => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
 
-/**
- * Safely parses string to BigNumber with error handling
- */
-export const safeParseUnits = (value: string, decimals: number): BigNumber => {
-  try {
-    return BigNumber.from(value).mul(BigNumber.from(10).pow(decimals));
-  } catch (err) {
-    console.error('Invalid token conversion:', err);
-    return BigNumber.from(0);
-  }
+export const calculateGasBuffer = (gasLimit: BigNumber, multiplier: number = 1.2): BigNumber => {
+  return gasLimit.mul(Math.floor(multiplier * 100)).div(100);
 };
