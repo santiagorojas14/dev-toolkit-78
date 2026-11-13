@@ -1,54 +1,39 @@
-export interface RetryOptions {
-  maxAttempts?: number;
-  delayMs?: number;
-  backoffFactor?: number;
-  retryableErrors?: (error: unknown) => boolean;
+export interface CryptoPrice {
+  symbol: string;
+  price: number;
+  timestamp: number;
 }
 
 /**
- * Executes an async operation with exponential backoff retry logic.
- * Tailored for crypto RPC calls prone to transient network failures.
+ * Normalizes raw api response data to local structure
  */
-export async function fetchWithRetry<T>(
-  operation: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
-  const maxAttempts = options.maxAttempts ?? 3;
-  const initialDelay = options.delayMs ?? 1000;
-  const backoffFactor = options.backoffFactor ?? 2;
-  const isRetryable = options.retryableErrors ?? (() => true);
-
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-
-      if (attempt === maxAttempts || !isRetryable(error)) {
-        throw error;
-      }
-
-      const delay = initialDelay * Math.pow(backoffFactor, attempt - 1);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
+export const formatPriceData = (raw: any): CryptoPrice => {
+  if (!raw?.s || !raw?.p) {
+    throw new Error('invalid payload structure');
   }
 
-  throw lastError;
-}
+  return {
+    symbol: String(raw.s).toUpperCase(),
+    price: parseFloat(raw.p),
+    timestamp: Date.now(),
+  };
+};
 
 /**
- * Helper to identify transient network errors or RPC rate limits (HTTP 429).
+ * Calculates percentage change between two values
  */
-export function isCryptoRpcRateLimit(error: unknown): boolean {
-  if (typeof error === 'object' && error !== null) {
-    const err = error as { status?: number; code?: number; message?: string };
-    return (
-      err.status === 429 ||
-      err.code === -32005 ||
-      (typeof err.message === 'string' && err.message.toLowerCase().includes('rate limit'))
-    );
-  }
-  return false;
-}
+export const calculateDelta = (current: number, previous: number): number => {
+  if (previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
+};
+
+/**
+ * Formats number for currency display
+ */
+export const formatCurrency = (value: number, precision: number = 2): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: precision,
+  }).format(value);
+};
