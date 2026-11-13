@@ -1,31 +1,49 @@
-export interface TransactionPayload {
-  id: string;
-  amount: number;
-  currency: 'BTC' | 'ETH' | 'SOL';
-  timestamp: number;
+/**
+ * Core performance interfaces for dev-toolkit-78
+ * Uses fixed-point precision for crypto calculations
+ */
+
+export interface CryptoTransaction {
+  readonly id: string;
+  readonly amount: bigint;
+  readonly timestamp: number;
 }
 
-export const validateTransaction = (data: unknown): data is TransactionPayload => {
-  if (typeof data !== 'object' || data === null) return false;
+export interface MemoizedResult<T> {
+  readonly data: T;
+  readonly lastUpdated: number;
+}
 
-  const p = data as Record<string, unknown>;
+/**
+ * Optimized batch structure for memory efficiency
+ */
+export type TransactionBatch = Map<string, CryptoTransaction>;
 
-  const isIdValid = typeof p.id === 'string' && p.id.length > 0;
-  const isAmountValid = typeof p.amount === 'number' && p.amount > 0;
-  const isCurrencyValid = ['BTC', 'ETH', 'SOL'].includes(p.currency as string);
-  const isTimestampValid = typeof p.timestamp === 'number' && p.timestamp > 0;
+/**
+ * Constants for throughput performance tuning
+ */
+export const PERFORMANCE_CONFIG = {
+  CACHE_TTL_MS: 5000,
+  BATCH_SIZE_LIMIT: 1000,
+  PRECISION_FACTOR: 10n ** 18n
+} as const;
 
-  return isIdValid && isAmountValid && isCurrencyValid && isTimestampValid;
-};
+export function calculateGasFee(amount: bigint, gasPrice: bigint): bigint {
+  return (amount * gasPrice) / PERFORMANCE_CONFIG.PRECISION_FACTOR;
+}
 
-export const processLoop = (queue: unknown[]): void => {
-  for (const entry of queue) {
-    if (!validateTransaction(entry)) {
-      console.error('Invalid payload schema detected:', entry);
-      continue;
-    }
+export class PerformanceStore<T> {
+  private cache: Map<string, MemoizedResult<T>> = new Map();
 
-    const tx = entry as TransactionPayload;
-    console.log(`Processing transaction ${tx.id} for ${tx.amount} ${tx.currency}`);
+  public set(key: string, value: T): void {
+    this.cache.set(key, { data: value, lastUpdated: Date.now() });
   }
-};
+
+  public get(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry || Date.now() - entry.lastUpdated > PERFORMANCE_CONFIG.CACHE_TTL_MS) {
+      return null;
+    }
+    return entry.data;
+  }
+}
