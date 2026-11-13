@@ -1,28 +1,54 @@
 export interface RetryOptions {
-  maxAttempts: number;
-  backoffMs: number;
+  maxAttempts?: number;
+  delayMs?: number;
+  backoffFactor?: number;
+  retryableErrors?: (error: unknown) => boolean;
 }
 
 /**
- * executes an async operation with exponential backoff for resilience
+ * Executes an async operation with exponential backoff retry logic.
+ * Tailored for crypto RPC calls prone to transient network failures.
  */
-export async function withRetry<T>(
+export async function fetchWithRetry<T>(
   operation: () => Promise<T>,
-  options: RetryOptions = { maxAttempts: 3, backoffMs: 1000 }
+  options: RetryOptions = {}
 ): Promise<T> {
-  let lastError: any;
+  const maxAttempts = options.maxAttempts ?? 3;
+  const initialDelay = options.delayMs ?? 1000;
+  const backoffFactor = options.backoffFactor ?? 2;
+  const isRetryable = options.retryableErrors ?? (() => true);
 
-  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await operation();
-    } catch (err) {
-      lastError = err;
-      if (attempt === options.maxAttempts) break;
+    } catch (error) {
+      lastError = error;
 
-      const delay = options.backoffMs * Math.pow(2, attempt - 1);
+      if (attempt === maxAttempts || !isRetryable(error)) {
+        throw error;
+      }
+
+      const delay = initialDelay * Math.pow(backoffFactor, attempt - 1);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
   throw lastError;
+}
+
+/**
+ * Helper to identify transient network errors or RPC rate limits (HTTP 429).
+ */
+export function isCryptoRpcRateLimit(error: unknown): boolean {
+  if (typeof error === 'object' && error !== null) {
+    const err = error as { status?: number; code?: number; message?: string };
+    return (
+      err.status === 429 ||
+      err.code === -32005 ||
+      (typeof err.message === 'string' && err.message.toLowerCase().includes('rate limit'))
+    );
+  }
+  return false;
 }
