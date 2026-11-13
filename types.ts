@@ -1,45 +1,31 @@
-export interface Transaction {
+export interface TransactionPayload {
   id: string;
   amount: number;
   currency: 'BTC' | 'ETH' | 'SOL';
   timestamp: number;
 }
 
-export interface ValidationResult {
-  isValid: boolean;
-  error?: string;
-}
+export const validateTransaction = (data: unknown): data is TransactionPayload => {
+  if (typeof data !== 'object' || data === null) return false;
 
-/**
- * schema validation for incoming crypto payloads
- */
-export const validateTransaction = (tx: any): ValidationResult => {
-  if (typeof tx.id !== 'string' || tx.id.length < 8) {
-    return { isValid: false, error: 'invalid transaction identifier' };
-  }
+  const p = data as Record<string, unknown>;
 
-  if (typeof tx.amount !== 'number' || tx.amount <= 0) {
-    return { isValid: false, error: 'positive numerical amount required' };
-  }
+  const isIdValid = typeof p.id === 'string' && p.id.length > 0;
+  const isAmountValid = typeof p.amount === 'number' && p.amount > 0;
+  const isCurrencyValid = ['BTC', 'ETH', 'SOL'].includes(p.currency as string);
+  const isTimestampValid = typeof p.timestamp === 'number' && p.timestamp > 0;
 
-  const validCurrencies = ['BTC', 'ETH', 'SOL'];
-  if (!validCurrencies.includes(tx.currency)) {
-    return { isValid: false, error: 'unsupported crypto asset type' };
-  }
-
-  return { isValid: true };
+  return isIdValid && isAmountValid && isCurrencyValid && isTimestampValid;
 };
 
-export const processLoop = (queue: any[]): void => {
-  for (const item of queue) {
-    const validation = validateTransaction(item);
-
-    if (!validation.isValid) {
-      console.error(`skipping invalid tx: ${validation.error}`);
+export const processLoop = (queue: unknown[]): void => {
+  for (const entry of queue) {
+    if (!validateTransaction(entry)) {
+      console.error('Invalid payload schema detected:', entry);
       continue;
     }
 
-    // perform core business logic here
-    console.log(`processing validated transaction: ${item.id}`);
+    const tx = entry as TransactionPayload;
+    console.log(`Processing transaction ${tx.id} for ${tx.amount} ${tx.currency}`);
   }
 };
