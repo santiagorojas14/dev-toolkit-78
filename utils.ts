@@ -1,39 +1,34 @@
-export interface CryptoPrice {
-  symbol: string;
-  price: number;
-  timestamp: number;
+import * as winston from 'winston';
+import 'winston-daily-rotate-file';
+
+/**
+ * Configure centralized logger for dev-toolkit-78
+ * Uses daily rotation to manage crypto node log growth
+ */
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      filename: 'logs/crypto-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
+
+export interface LogMetadata {
+  txHash?: string;
+  network?: 'mainnet' | 'testnet';
+  component: string;
 }
 
-/**
- * Normalizes raw api response data to local structure
- */
-export const formatPriceData = (raw: any): CryptoPrice => {
-  if (!raw?.s || !raw?.p) {
-    throw new Error('invalid payload structure');
-  }
-
-  return {
-    symbol: String(raw.s).toUpperCase(),
-    price: parseFloat(raw.p),
-    timestamp: Date.now(),
-  };
-};
-
-/**
- * Calculates percentage change between two values
- */
-export const calculateDelta = (current: number, previous: number): number => {
-  if (previous === 0) return 0;
-  return ((current - previous) / previous) * 100;
-};
-
-/**
- * Formats number for currency display
- */
-export const formatCurrency = (value: number, precision: number = 2): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: precision,
-  }).format(value);
+export const logEvent = (message: string, meta: LogMetadata) => {
+  logger.info(message, meta);
 };
