@@ -3,7 +3,7 @@ import 'winston-daily-rotate-file';
 
 /**
  * Logging configuration for dev-toolkit-78
- * Uses daily file rotation to maintain disk space
+ * Rotates logs daily and keeps 14 days of history
  */
 export const logger = winston.createLogger({
   level: 'info',
@@ -23,8 +23,8 @@ export const logger = winston.createLogger({
   ]
 });
 
-export interface LogMetadata {
+export interface LogContext {
   txHash?: string;
-  pair?: string;
+  market?: string;
   error?: unknown;
 }
