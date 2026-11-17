@@ -1,30 +1,25 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
+export const CACHE_TTL_MS = 60000;
+export const BATCH_SIZE = 50;
+
+interface PerformanceConfig {
+  readonly memoizationEnabled: boolean;
+  readonly batchProcessingLimit: number;
+}
 
 /**
- * Logging configuration for dev-toolkit-78
- * Rotates logs daily and keeps 14 days of history
+ * Core configuration for crypto processing modules
+ * Optimizes throughput via static sizing and memoization
  */
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.DailyRotateFile({
-      filename: 'logs/crypto-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d'
-    })
-  ]
+export const performanceConfig: PerformanceConfig = {
+  memoizationEnabled: true,
+  batchProcessingLimit: BATCH_SIZE,
+};
+
+export const getOptimizationSettings = () => ({
+  ttl: CACHE_TTL_MS,
+  limits: performanceConfig,
+  timestamp: Date.now(),
 });
 
-export interface LogContext {
-  txHash?: string;
-  market?: string;
-  error?: unknown;
-}
+// Optimization: pre-compute sizing for high-frequency crypto loops
+export const PRE_ALLOCATED_BUFFER_SIZE = 1024 * 16;
