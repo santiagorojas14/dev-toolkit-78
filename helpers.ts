@@ -1,32 +1,29 @@
-import { BigNumber } from 'ethers';
+export interface RetryOptions {
+  maxAttempts: number;
+  delayMs: number;
+}
 
 /**
- * Helper functions for dev-toolkit-78 crypto operations
+ * Executes a function with exponential backoff for crypto network resilience
  */
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
+): Promise<T> {
+  let lastError: unknown;
 
-export const formatUnits = (value: string | number | BigNumber, decimals: number = 18): string => {
-  const bn = BigNumber.from(value);
-  const divisor = BigNumber.from(10).pow(decimals);
-  const quotient = bn.div(divisor);
-  const remainder = bn.mod(divisor);
-  
-  return `${quotient.toString()}.${remainder.toString().padStart(decimals, '0')}`;
-};
+  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      
+      if (attempt < options.maxAttempts) {
+        const backoff = options.delayMs * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+      }
+    }
+  }
 
-export const parseUnits = (value: string, decimals: number = 18): BigNumber => {
-  const [integer, fraction = ''] = value.split('.');
-  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
-  return BigNumber.from(integer).mul(BigNumber.from(10).pow(decimals)).add(BigNumber.from(paddedFraction));
-};
-
-export const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-export const validateAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
-
-export const calculateGasBuffer = (gasLimit: BigNumber, multiplier: number = 1.2): BigNumber => {
-  return gasLimit.mul(Math.floor(multiplier * 100)).div(100);
-};
+  throw lastError;
+}
