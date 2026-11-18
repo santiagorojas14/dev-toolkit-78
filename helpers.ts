@@ -1,29 +1,34 @@
-export interface RetryOptions {
-  maxAttempts: number;
-  delayMs: number;
+export interface AppConfig {
+  rpcUrl: string;
+  chainId: number;
+  timeout: number;
+}
+
+const DEFAULT_CONFIG: AppConfig = {
+  rpcUrl: 'https://mainnet.infura.io/v3/default',
+  chainId: 1,
+  timeout: 5000
+};
+
+/**
+ * Merges environment variables with default configuration values
+ */
+export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+  return {
+    rpcUrl: process.env.RPC_URL || overrides.rpcUrl || DEFAULT_CONFIG.rpcUrl,
+    chainId: Number(process.env.CHAIN_ID) || overrides.chainId || DEFAULT_CONFIG.chainId,
+    timeout: Number(process.env.TIMEOUT) || overrides.timeout || DEFAULT_CONFIG.timeout
+  };
 }
 
 /**
- * Executes a function with exponential backoff for crypto network resilience
+ * Validates that critical configuration fields are present
  */
-export async function withRetry<T>(
-  operation: () => Promise<T>,
-  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
-): Promise<T> {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
-    try {
-      return await operation();
-    } catch (err) {
-      lastError = err;
-      
-      if (attempt < options.maxAttempts) {
-        const backoff = options.delayMs * Math.pow(2, attempt - 1);
-        await new Promise((resolve) => setTimeout(resolve, backoff));
-      }
-    }
+export function validateConfig(config: AppConfig): void {
+  if (!config.rpcUrl.startsWith('https://')) {
+    throw new Error('Invalid RPC URL format');
   }
-
-  throw lastError;
+  if (config.chainId <= 0) {
+    throw new Error('Chain ID must be positive');
+  }
 }
