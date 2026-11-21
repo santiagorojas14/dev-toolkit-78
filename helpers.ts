@@ -1,34 +1,41 @@
-export interface AppConfig {
-  rpcUrl: string;
-  chainId: number;
-  timeout: number;
+export interface PriceData {
+  symbol: string;
+  price: number;
+  timestamp: number;
 }
 
-const DEFAULT_CONFIG: AppConfig = {
-  rpcUrl: 'https://mainnet.infura.io/v3/default',
-  chainId: 1,
-  timeout: 5000
+/**
+ * Normalizes crypto price data for internal processing
+ */
+export const formatPrice = (raw: any): PriceData => {
+  return {
+    symbol: String(raw.s).toUpperCase(),
+    price: parseFloat(raw.p),
+    timestamp: Date.now(),
+  };
 };
 
 /**
- * Merges environment variables with default configuration values
+ * Retries a promise-based operation with exponential backoff
  */
-export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
-  return {
-    rpcUrl: process.env.RPC_URL || overrides.rpcUrl || DEFAULT_CONFIG.rpcUrl,
-    chainId: Number(process.env.CHAIN_ID) || overrides.chainId || DEFAULT_CONFIG.chainId,
-    timeout: Number(process.env.TIMEOUT) || overrides.timeout || DEFAULT_CONFIG.timeout
-  };
-}
+export const withRetry = async <T>(
+  fn: () => Promise<T>,
+  retries: number = 3,
+  delay: number = 1000
+): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries <= 0) throw error;
+    await new Promise((res) => setTimeout(res, delay));
+    return withRetry(fn, retries - 1, delay * 2);
+  }
+};
 
 /**
- * Validates that critical configuration fields are present
+ * Validates crypto wallet addresses basic length and prefix
  */
-export function validateConfig(config: AppConfig): void {
-  if (!config.rpcUrl.startsWith('https://')) {
-    throw new Error('Invalid RPC URL format');
-  }
-  if (config.chainId <= 0) {
-    throw new Error('Chain ID must be positive');
-  }
-}
+export const isValidAddress = (address: string): boolean => {
+  const hexRegex = /^0x[a-fA-F0-9]{40}$/;
+  return hexRegex.test(address);
+};
