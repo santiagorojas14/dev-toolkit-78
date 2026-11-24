@@ -1,34 +1,33 @@
-interface Transaction {
-  id: string;
-  amount: number;
-  currency: string;
+import winston from 'winston';
+import 'winston-daily-rotate-file';
+
+/**
+ * Crypto-focused logger setup for dev-toolkit-78
+ * Configured for daily rotation to manage disk I/O
+ */
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.DailyRotateFile({
+      filename: 'logs/toolkit-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    }),
+    new winston.transports.Console({
+      format: winston.format.simple()
+    })
+  ]
+});
+
+export interface LogMetadata {
+  asset?: string;
+  txHash?: string;
+  status: 'pending' | 'success' | 'failed';
+  latencyMs?: number;
 }
-
-/**
- * Validates incoming crypto transaction payload
- */
-export const isValidTransaction = (tx: any): tx is Transaction => {
-  if (typeof tx !== 'object' || tx === null) return false;
-  if (typeof tx.id !== 'string' || tx.id.length < 8) return false;
-  if (typeof tx.amount !== 'number' || tx.amount <= 0) return false;
-  if (typeof tx.currency !== 'string' || tx.currency.length !== 3) return false;
-  return true;
-};
-
-/**
- * Process ledger updates with strict input sanitization
- */
-export const processBatch = (data: unknown[]): void => {
-  for (const entry of data) {
-    try {
-      if (!isValidTransaction(entry)) {
-        console.error('Invalid transaction schema detected, skipping');
-        continue;
-      }
-      // Proceed with wallet injection logic
-      console.log(`Processing valid tx: ${entry.id}`);
-    } catch (err) {
-      console.error('Fatal batch processing error', err);
-    }
-  }
-};
