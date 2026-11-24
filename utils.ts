@@ -1,33 +1,29 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
+export interface RetryOptions {
+  maxAttempts: number;
+  delayMs: number;
+}
 
 /**
- * Crypto-focused logger setup for dev-toolkit-78
- * Configured for daily rotation to manage disk I/O
+ * executes a network operation with exponential backoff
  */
-export const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.DailyRotateFile({
-      filename: 'logs/toolkit-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '20m',
-      maxFiles: '14d'
-    }),
-    new winston.transports.Console({
-      format: winston.format.simple()
-    })
-  ]
-});
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = { maxAttempts: 3, delayMs: 1000 }
+): Promise<T> {
+  let lastError: unknown;
 
-export interface LogMetadata {
-  asset?: string;
-  txHash?: string;
-  status: 'pending' | 'success' | 'failed';
-  latencyMs?: number;
+  for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+
+      if (attempt < options.maxAttempts) {
+        const backoff = options.delayMs * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+      }
+    }
+  }
+
+  throw lastError;
 }
