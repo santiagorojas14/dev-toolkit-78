@@ -1,41 +1,32 @@
-export interface PriceData {
-  symbol: string;
-  price: number;
-  timestamp: number;
-}
+import winston from 'winston';
+import 'winston-daily-rotate-file';
+import path from 'path';
 
 /**
- * Normalizes crypto price data for internal processing
+ * Configures winston logger with daily file rotation
+ * for crypto event tracking and audit trails.
  */
-export const formatPrice = (raw: any): PriceData => {
-  return {
-    symbol: String(raw.s).toUpperCase(),
-    price: parseFloat(raw.p),
-    timestamp: Date.now(),
-  };
-};
+export const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.DailyRotateFile({
+      dirname: path.join(__dirname, '../logs'),
+      filename: 'dev-toolkit-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    }),
+    new winston.transports.Console({
+      format: winston.format.simple()
+    })
+  ]
+});
 
-/**
- * Retries a promise-based operation with exponential backoff
- */
-export const withRetry = async <T>(
-  fn: () => Promise<T>,
-  retries: number = 3,
-  delay: number = 1000
-): Promise<T> => {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries <= 0) throw error;
-    await new Promise((res) => setTimeout(res, delay));
-    return withRetry(fn, retries - 1, delay * 2);
-  }
-};
-
-/**
- * Validates crypto wallet addresses basic length and prefix
- */
-export const isValidAddress = (address: string): boolean => {
-  const hexRegex = /^0x[a-fA-F0-9]{40}$/;
-  return hexRegex.test(address);
+export const logCryptoEvent = (txId: string, action: string, data: object) => {
+  logger.info({ txId, action, ...data });
 };
