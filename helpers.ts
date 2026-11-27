@@ -1,42 +1,32 @@
-export interface PriceData {
-  symbol: string;
-  price: number;
-  timestamp: number;
-}
+import { BigNumber } from 'ethers';
 
 /**
- * Normalizes raw websocket price streams into a standardized format.
- * Filters out invalid entries with non-positive prices.
+ * Converts human-readable token amount to atomic units
  */
-export const formatPriceUpdate = (data: any): PriceData | null => {
-  if (!data || typeof data.p !== 'string' || typeof data.s !== 'string') {
-    return null;
-  }
-
-  const price = parseFloat(data.p);
-
-  if (isNaN(price) || price <= 0) {
-    return null;
-  }
-
-  return {
-    symbol: data.s.toUpperCase(),
-    price,
-    timestamp: data.t || Date.now(),
-  };
+export const toWei = (amount: string, decimals: number = 18): BigNumber => {
+  const [integer, fraction = ''] = amount.split('.');
+  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+  return BigNumber.from(integer + paddedFraction);
 };
 
 /**
- * Calculates the percentage change between two price points.
+ * Safely formats address for display in UI
  */
-export const calculateChange = (current: number, previous: number): number => {
-  if (previous === 0) return 0;
-  return ((current - previous) / previous) * 100;
+export const truncateAddress = (address: string): string => {
+  if (address.length < 10) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
 /**
- * Formats a number to a fixed crypto-friendly decimal precision.
+ * Delay execution for async polling cycles
  */
-export const formatCurrency = (amount: number, decimals: number = 8): string => {
-  return amount.toFixed(decimals).replace(/\.?0+$/, '');
+export const sleep = (ms: number): Promise<void> => 
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Calculate slippage impact on transaction value
+ */
+export const getSlippageLimit = (amount: BigNumber, slippageBps: number): BigNumber => {
+  const basis = 10000;
+  return amount.mul(basis - slippageBps).div(basis);
 };
