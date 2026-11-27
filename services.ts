@@ -1,44 +1,38 @@
-import { ethers } from 'ethers';
+interface Transaction {
+  id: string;
+  amount: number;
+  recipient: string;
+}
 
 /**
- * Formats a wei value to a human-readable ether string
+ * Validates transaction schema and constraints for network propagation
  */
-export const formatEtherBalance = (balance: bigint, decimals: number = 18): string => {
-  return ethers.formatUnits(balance, decimals);
-};
+export function validateTransaction(tx: any): tx is Transaction {
+  if (!tx || typeof tx !== 'object') return false;
+  
+  const hasValidFields = 
+    typeof tx.id === 'string' && 
+    typeof tx.amount === 'number' && 
+    tx.amount > 0 &&
+    typeof tx.recipient === 'string' &&
+    tx.recipient.startsWith('0x');
 
-/**
- * Validates an ethereum address format
- */
-export const isValidAddress = (address: string): boolean => {
-  return ethers.isAddress(address);
-};
+  return hasValidFields;
+}
 
-/**
- * Calculates slippage for trade operations
- */
-export const calculateSlippageAmount = (
-  amount: bigint,
-  slippageBasisPoints: bigint
-): bigint => {
-  const basis = 10000n;
-  return (amount * slippageBasisPoints) / basis;
-};
+export async function processTransactionLoop(queue: any[]): Promise<void> {
+  for (const item of queue) {
+    try {
+      if (!validateTransaction(item)) {
+        console.error(`Invalid transaction format: ${item?.id || 'unknown'}`);
+        continue;
+      }
 
-/**
- * Parses input string to raw BigInt units
- */
-export const parseInputAmount = (amount: string, decimals: number = 18): bigint => {
-  try {
-    return ethers.parseUnits(amount, decimals);
-  } catch {
-    return 0n;
+      // Process valid crypto transaction
+      console.log(`Processing tx: ${item.id} for ${item.amount} units`);
+      
+    } catch (err) {
+      console.error('Critical failure in processing cycle', err);
+    }
   }
-};
-
-/**
- * Normalizes address to checksum format
- */
-export const normalizeAddress = (address: string): string => {
-  return ethers.getAddress(address);
-};
+}
