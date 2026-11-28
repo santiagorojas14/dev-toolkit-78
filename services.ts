@@ -1,38 +1,33 @@
-interface Transaction {
-  id: string;
-  amount: number;
-  recipient: string;
+import { LRUCache } from 'lru-cache';
+
+interface CryptoQuote {
+  symbol: string;
+  price: number;
+  timestamp: number;
 }
+
+// Cache instance with 5 minute expiration for performance optimization
+const quoteCache = new LRUCache<string, CryptoQuote>({
+  max: 500,
+  ttl: 1000 * 60 * 5,
+});
 
 /**
- * Validates transaction schema and constraints for network propagation
+ * Fetches market data with memoization to reduce latency
+ * for frequent redundant blockchain state queries
  */
-export function validateTransaction(tx: any): tx is Transaction {
-  if (!tx || typeof tx !== 'object') return false;
-  
-  const hasValidFields = 
-    typeof tx.id === 'string' && 
-    typeof tx.amount === 'number' && 
-    tx.amount > 0 &&
-    typeof tx.recipient === 'string' &&
-    tx.recipient.startsWith('0x');
+export const getMarketQuote = async (symbol: string): Promise<CryptoQuote> => {
+  const cached = quoteCache.get(symbol);
+  if (cached) return cached;
 
-  return hasValidFields;
-}
+  // Simulated external API call to node provider
+  const response = await fetch(`https://api.dev-toolkit-78.io/v1/quote/${symbol}`);
+  const data: CryptoQuote = await response.json();
 
-export async function processTransactionLoop(queue: any[]): Promise<void> {
-  for (const item of queue) {
-    try {
-      if (!validateTransaction(item)) {
-        console.error(`Invalid transaction format: ${item?.id || 'unknown'}`);
-        continue;
-      }
+  quoteCache.set(symbol, data);
+  return data;
+};
 
-      // Process valid crypto transaction
-      console.log(`Processing tx: ${item.id} for ${item.amount} units`);
-      
-    } catch (err) {
-      console.error('Critical failure in processing cycle', err);
-    }
-  }
-}
+export const clearCache = (): void => {
+  quoteCache.clear();
+};
