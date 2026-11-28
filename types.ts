@@ -1,30 +1,32 @@
-export interface CryptoPrice {
-  symbol: string;
-  price: number;
+export enum CryptoErrorCode {
+  INSUFFICIENT_FUNDS = 'INSUFFICIENT_FUNDS',
+  INVALID_NETWORK = 'INVALID_NETWORK',
+  TRANSACTION_TIMEOUT = 'TRANSACTION_TIMEOUT',
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  UNAUTHORIZED_ACCESS = 'UNAUTHORIZED_ACCESS'
+}
+
+export interface CryptoError {
+  code: CryptoErrorCode;
+  message: string;
+  details?: Record<string, unknown>;
   timestamp: number;
-  source: 'binance' | 'coinbase' | 'kraken';
 }
 
-export interface MarketVolume {
-  baseSymbol: string;
-  quoteSymbol: string;
-  volume24h: number;
-  liquidityDepth: number;
+export class ToolkitError extends Error implements CryptoError {
+  public readonly code: CryptoErrorCode;
+  public readonly details: Record<string, unknown>;
+  public readonly timestamp: number;
+
+  constructor(code: CryptoErrorCode, message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.code = code;
+    this.details = details;
+    this.timestamp = Date.now();
+    Object.setPrototypeOf(this, ToolkitError.prototype);
+  }
 }
 
-/**
- * Normalizes raw API responses into application-standard types
- */
-export const normalizePriceData = (raw: any): CryptoPrice => ({
-  symbol: String(raw.s || raw.symbol).toUpperCase(),
-  price: parseFloat(raw.p || raw.price),
-  timestamp: Date.now(),
-  source: raw.src || 'binance'
-});
-
-/**
- * Validates price stability for high-frequency trades
- */
-export const isValidPrice = (data: CryptoPrice): boolean => {
-  return !isNaN(data.price) && data.price > 0 && data.symbol.length <= 6;
-};
+export type CryptoResult<T> = 
+  | { success: true; data: T }
+  | { success: false; error: CryptoError };
